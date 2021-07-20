@@ -1,0 +1,6 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  1.0;
+// CHECK:FloatingExpr: f32 1.000000e+00
+}

@@ -1,0 +1,12 @@
+// RUN: quark --help 2>&1 | FileCheck --match-full-lines --strict-whitespace "%s"
+
+//  CHECK-NOT:{{.}}
+//      CHECK:Syntax: quark [options] <input>
+//CHECK-EMPTY:
+// CHECK-NEXT:Options:
+// CHECK-NEXT:  --emit-ast                     emits Quark's AST
+// CHECK-NEXT:  --emit-ir                      emits LLVM IR
+// CHECK-NEXT:  -h [ --help ]                  print help
+// CHECK-NEXT:  -v [ --version ]               print version
+//  CHECK-SAME:{{.*$}}
+//   CHECK-NOT:{{^.+}}

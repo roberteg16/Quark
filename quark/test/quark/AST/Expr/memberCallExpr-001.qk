@@ -1,0 +1,22 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type DummyType {
+  a i32
+}
+
+fn (dummyType *DummyType) baz: a f32 -> void {}
+
+fn foo: -> void {
+  var dummyTypePtr := alloc DummyType;
+  dummyTypePtr->baz(4.0);
+//      CHECK:MemberCallExpr: (rec: *DummyType) baz (f32) -> void
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: *DummyType dummyTypePtr
+// CHECK-NEXT:FloatingExpr: f32 4.000000e+00
+
+  var dummyType : DummyType;
+  dummyType.baz(10.0);
+//      CHECK:MemberCallExpr: (rec: DummyType) baz (f32) -> void
+// CHECK-NEXT:VarRefExpr: DummyType dummyType
+// CHECK-NEXT:FloatingExpr: f32 1.000000e+01
+}

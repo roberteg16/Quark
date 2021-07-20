@@ -1,0 +1,9 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var foo : i32[100];
+  foo[0];
+//      CHECK:ArrayAccessExpr: i32
+// CHECK-NEXT:VarRefExpr: [100]i32 foo
+// CHECK-NEXT:IntegerExpr: i32 0
+}

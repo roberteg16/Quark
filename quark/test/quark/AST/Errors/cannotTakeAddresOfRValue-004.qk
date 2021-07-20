@@ -1,0 +1,9 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+
+// XFAIL: *
+
+fn foo: -> void {
+  var i := 1;
+  & &i;
+}

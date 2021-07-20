@@ -1,0 +1,13 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> i32 {
+//      CHECK:define i32 @foo_() {
+// CHECK-NEXT:entry:
+// CHECK-NEXT:  %ret.var = alloca i32, align 4
+// CHECK-NEXT:  store i32 5, i32* %ret.var, align 4
+// CHECK-NEXT:  br label %func.end
+  ret 5;
+//      CHECK: func.end:                                         ; preds = %entry
+// CHECK-NEXT:   %0 = load i32, i32* %ret.var, align 4
+// CHECK-NEXT:   ret i32 %0
+}

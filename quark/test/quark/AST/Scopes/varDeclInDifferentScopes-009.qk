@@ -1,0 +1,10 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Car {}
+
+fn (car *Car) foo: i i32 -> void {
+  {
+    var car : *Car;
+  }
+}
+// CHECK:MethodDecl: (*Car) foo: ( i i32 ) -> void

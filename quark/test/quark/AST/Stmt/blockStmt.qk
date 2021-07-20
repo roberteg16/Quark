@@ -1,0 +1,6 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  {}
+  // CHECK:BlockStmt:
+}

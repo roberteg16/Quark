@@ -1,0 +1,11 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Bar {
+  a i32
+}
+
+fn (bar *Bar) foo: a i32, b i32 -> i32 {}
+//      CHECK:MethodDecl: (*Bar) foo: ( a i32, b i32 ) -> i32
+// CHECK-NEXT:VarDecl: (reciv) bar *Bar
+// CHECK-NEXT:VarDecl: (param) a i32
+// CHECK-NEXT:VarDecl: (param) b i32

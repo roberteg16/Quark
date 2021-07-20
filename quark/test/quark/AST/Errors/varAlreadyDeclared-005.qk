@@ -1,0 +1,10 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Car {}
+
+fn (car *Car) foo: i i32 -> void {
+  var car : *Car;
+  for (var j := 1 ; j < 100; j = j + 1)
+   var i := 1;
+}
+// CHECK:Error: var 'car' already defined

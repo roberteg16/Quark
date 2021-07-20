@@ -1,0 +1,10 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Bar {}
+
+fn foo: -> void {
+  var i := alloc i32;
+// CHECK:AllocExpr: *i32
+  var bar := alloc Bar;
+// CHECK:AllocExpr: *Bar
+}

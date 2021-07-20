@@ -1,0 +1,7 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> i32 {
+  var car : i32;
+  dealloc car;
+}
+// CHECK:Error: Deallocating non pointer

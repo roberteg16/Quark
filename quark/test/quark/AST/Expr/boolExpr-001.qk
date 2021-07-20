@@ -1,0 +1,8 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  false;
+// CHECK:BooleanExpr: b1 false
+  true;
+// CHECK:BooleanExpr: b1 true
+}

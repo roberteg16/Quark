@@ -1,0 +1,8 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var i := 1;
+  //      CHECK:VarDeclStmt
+  // CHECK-NEXT:VarDecl: (local) i i32
+  // CHECK-NEXT:IntegerExpr: i32 1
+}

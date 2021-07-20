@@ -1,0 +1,33 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var i : i32;
+  i = 2;
+// CHECK:BinaryExpr: i32 (=)
+  1 + 2;
+// CHECK:BinaryExpr: i32 (+)
+  1 - 2;
+// CHECK:BinaryExpr: i32 (-)
+  1 * 2;
+// CHECK:BinaryExpr: i32 (*)
+  1 / 2;
+// CHECK:BinaryExpr: i32 (/)
+  1 % 2;
+// CHECK:BinaryExpr: i32 (%)
+  1 != 2;
+// CHECK:BinaryExpr: b1 (!=)
+  1 == 2;
+// CHECK:BinaryExpr: b1 (==)
+  1 && 2;
+// CHECK:BinaryExpr: b1 (&&)
+  1 || 2;
+// CHECK:BinaryExpr: b1 (||)
+  1 < 2;
+// CHECK:BinaryExpr: b1 (<)
+  1 <= 2;
+// CHECK:BinaryExpr: b1 (<=)
+  1 > 2;
+// CHECK:BinaryExpr: b1 (>)
+  1 >= 2;
+// CHECK:BinaryExpr: b1 (>=)
+}

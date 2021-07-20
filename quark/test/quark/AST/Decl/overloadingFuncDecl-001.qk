@@ -1,0 +1,9 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type bar {}
+
+fn foo: -> void {}
+//      CHECK:FuncDecl: foo: (  ) -> void
+
+fn (bar *bar) foo: -> void {}
+// CHECK-NEXT:MethodDecl: (*bar) foo: (  ) -> void

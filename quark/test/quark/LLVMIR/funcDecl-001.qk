@@ -1,0 +1,11 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+//      CHECK:define void @foo_() {
+// CHECK-NEXT:entry:
+// CHECK-NEXT:  br label %func.end
+  ret;
+//      CHECK:func.end:                                         ; preds = %entry
+// CHECK-NEXT:  ret void
+// CHECK-NEXT:}
+}

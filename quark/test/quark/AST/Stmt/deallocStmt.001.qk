@@ -1,0 +1,7 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var i := alloc i32;
+  dealloc i;
+  // CHECK:DeallocStmt:
+}

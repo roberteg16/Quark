@@ -1,0 +1,4 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Bar {}
+// CHECK:TypeDecl: Bar

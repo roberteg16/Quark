@@ -1,0 +1,13 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn baz: -> i32 {
+  ret 1;
+}
+
+fn bar: a i32 -> void {}
+
+fn foo: -> void {
+  bar(baz());
+//      CHECK:FunctionCallExpr: bar (i32) -> void
+// CHECK-NEXT:FunctionCallExpr: baz () -> i32
+}

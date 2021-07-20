@@ -1,0 +1,7 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var dummyTypePtr : NotExistingType;
+}
+
+// CHECK:Error: type 'NotExistingType' not found!

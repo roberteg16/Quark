@@ -1,0 +1,6 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Vehicle {}
+type Vehicle {}
+
+// CHECK:Error: type 'Vehicle' already defined!

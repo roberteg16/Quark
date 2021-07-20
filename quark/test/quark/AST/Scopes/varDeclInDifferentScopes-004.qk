@@ -1,0 +1,15 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: i i32 -> void {
+  {
+   var i := 1;
+   if (i) {
+     var i := 1;
+   } elsif (i + 1) {
+     var i := 1;
+   } else {
+     var i := 1;
+   }
+  }
+}
+// CHECK:FuncDecl: foo: ( i i32 ) -> void

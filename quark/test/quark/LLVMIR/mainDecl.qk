@@ -1,0 +1,23 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+fn main: argc i32, argv **i8 -> i32 {
+  ret 1;
+}
+
+//      CHECK:; ModuleID = '/home/robert/Documents/Projects/llvm-project/quark/test/quark/LLVMIR/mainDecl.qk'
+// CHECK-NEXT:source_filename = "/home/robert/Documents/Projects/llvm-project/quark/test/quark/LLVMIR/mainDecl.qk"
+//CHECK-EMPTY:
+// CHECK-NEXT:define i32 @main(i32 %0, i8** %1) {
+// CHECK-NEXT:entry:
+// CHECK-NEXT:  %argc.var = alloca i32, align 4
+// CHECK-NEXT:  %argv.var = alloca i8**, align 8
+// CHECK-NEXT:  %ret.var = alloca i32, align 4
+// CHECK-NEXT:  store i32 %0, i32* %argc.var, align 4
+// CHECK-NEXT:  store i8** %1, i8*** %argv.var, align 8
+// CHECK-NEXT:  store i32 1, i32* %ret.var, align 4
+// CHECK-NEXT:  br label %func.end
+//CHECK-EMPTY:
+// CHECK-NEXT:func.end:                                         ; preds = %entry
+// CHECK-NEXT:  %2 = load i32, i32* %ret.var, align 4
+// CHECK-NEXT:  ret i32 %2
+// CHECK-NEXT:}

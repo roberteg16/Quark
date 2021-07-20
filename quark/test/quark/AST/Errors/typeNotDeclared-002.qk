@@ -1,0 +1,4 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> k32 {}
+// CHECK:Error: type 'k32' not found!

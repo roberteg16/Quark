@@ -1,0 +1,5 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type i32 {}
+
+// CHECK:Error: type 'i32' already defined!

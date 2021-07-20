@@ -1,0 +1,18 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Foo {
+  a i32
+  b i32
+}
+
+fn foo: -> void {
+  var foo : *Foo;
+  foo->a;
+//      CHECK:MemberExpr: 'a' i32
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: *Foo foo
+  foo->b;
+//      CHECK:MemberExpr: 'b' i32
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: *Foo foo
+}

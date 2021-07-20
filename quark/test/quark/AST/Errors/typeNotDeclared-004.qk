@@ -1,0 +1,6 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Vehicle {}
+
+fn foo: -> Veicle {}
+// CHECK:Error: type 'Veicle' not found!

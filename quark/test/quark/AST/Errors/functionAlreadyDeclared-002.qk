@@ -1,0 +1,6 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {}
+fn foo: -> i32 {}
+
+// CHECK:Error: function 'foo' already defined!

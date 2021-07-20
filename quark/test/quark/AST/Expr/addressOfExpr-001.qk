@@ -1,0 +1,7 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var i : i32;
+  &i;
+// CHECK:UnaryExpr: *i32 (&)
+}

@@ -1,0 +1,13 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Foo {
+  b i32
+}
+//      CHECK: TypeDecl: Foo
+// CHECK-NEXT: TypeFieldDecl: b i32
+
+type Bar {
+  a Foo
+}
+//      CHECK: TypeDecl: Bar
+// CHECK-NEXT: TypeFieldDecl: a Foo

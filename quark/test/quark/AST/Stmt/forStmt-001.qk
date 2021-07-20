@@ -1,0 +1,10 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  for (var i := 0; i < 100; i = i + 1) {}
+  //      CHECK:ForStmt:
+  // CHECK-NEXT:VarDeclStmt:
+  //      CHECK:BinaryExpr: b1 (<)
+  //      CHECK:BinaryExpr: i32 (=)
+  //      CHECK:BlockStmt:
+}

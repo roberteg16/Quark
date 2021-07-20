@@ -1,0 +1,11 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Car {
+  a i32
+}
+
+fn foo: -> i32 {
+  var car : Car;
+  car.b;
+}
+// CHECK:Error: Field does not exists

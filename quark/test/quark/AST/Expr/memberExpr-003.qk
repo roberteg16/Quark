@@ -1,0 +1,42 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Foo1 {
+ a f64
+}
+
+type Foo2 {
+  a Foo1
+  b f32
+}
+
+type Foo {
+  a Foo2
+  b i32
+}
+
+fn foo: -> void {
+  var foo : Foo;
+  foo.a;
+//      CHECK:MemberExpr: 'a' Foo2
+// CHECK-NEXT:VarRefExpr: Foo foo
+
+  foo.b;
+//      CHECK:MemberExpr: 'b' i32
+// CHECK-NEXT:VarRefExpr: Foo foo
+
+  foo.a.a;
+//      CHECK:MemberExpr: 'a' Foo1
+// CHECK-NEXT:MemberExpr: 'a' Foo2
+// CHECK-NEXT:VarRefExpr: Foo foo
+
+  foo.a.a.a;
+  //      CHECK:MemberExpr: 'a' f64
+// CHECK-NEXT:MemberExpr: 'a' Foo1
+// CHECK-NEXT:MemberExpr: 'a' Foo2
+// CHECK-NEXT:VarRefExpr: Foo foo
+
+  foo.a.b;
+//      CHECK:MemberExpr: 'b' f32
+// CHECK-NEXT:MemberExpr: 'a' Foo2
+// CHECK-NEXT:VarRefExpr: Foo foo
+}

@@ -1,0 +1,7 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  for (var i := 1 ; i < 100; i = i + 1)
+   var i := 1;
+}
+// CHECK:Error: var 'i' already defined!

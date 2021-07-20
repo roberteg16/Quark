@@ -1,0 +1,10 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn bar: -> *i32 {
+  ret alloc i32;
+}
+
+fn foo: -> void {
+  &bar();
+}
+// CHECK:Error: Cannot take address of r-value

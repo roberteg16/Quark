@@ -1,0 +1,29 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+type Foo {
+  a i32
+}
+
+fn (foo *Foo) foo: a i32, b i32, c f32, d f64 -> b1 {
+//      CHECK:define i1 @foo__rec__ptr__Fooi32i32f32f64(%Foo* %0, i32 %1, i32 %2, float %3, double %4) {
+// CHECK-NEXT:entry:
+// CHECK-NEXT:  %a.var = alloca i32, align 4
+// CHECK-NEXT:  %b.var = alloca i32, align 4
+// CHECK-NEXT:  %c.var = alloca float, align 4
+// CHECK-NEXT:  %d.var = alloca double, align 8
+// CHECK-NEXT:  %foo.var = alloca %Foo*, align 8
+// CHECK-NEXT:  %ret.var = alloca i1, align 1
+// CHECK-NEXT:  store i32 %1, i32* %a.var, align 4
+// CHECK-NEXT:  store i32 %2, i32* %b.var, align 4
+// CHECK-NEXT:  store float %3, float* %c.var, align 4
+// CHECK-NEXT:  store double %4, double* %d.var, align 8
+// CHECK-NEXT:  store %Foo* %0, %Foo** %foo.var, align 8
+  ret false;
+// CHECK-NEXT:  store i1 false, i1* %ret.var, align 1
+// CHECK-NEXT:  br label %func.end
+//CHECK-EMPTY:
+// CHECK-NEXT:func.end:                                         ; preds = %entry
+// CHECK-NEXT:  %5 = load i1, i1* %ret.var, align 1
+// CHECK-NEXT:  ret i1 %5
+// CHECK-NEXT:}
+}

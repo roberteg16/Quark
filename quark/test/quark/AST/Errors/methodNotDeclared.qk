@@ -1,0 +1,18 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type DummyType {
+  a i32
+}
+
+type DummyType2 {
+  a i32
+}
+
+fn (dummyType *DummyType) baz: a f32 -> void {}
+
+fn foo: -> void {
+  var dummyTypePtr := alloc DummyType2;
+  dummyTypePtr->baz(4.0);
+}
+
+// CHECK: Error: method: '(*DummyType2) baz:f32' not defined!

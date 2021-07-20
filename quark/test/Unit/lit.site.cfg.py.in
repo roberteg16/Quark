@@ -1,0 +1,13 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+import sys
+
+config.llvm_src_root = "@LLVM_SOURCE_DIR@"
+config.llvm_obj_root = "@LLVM_BINARY_DIR@"
+config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+config.llvm_libs_dir = "@LLVM_LIBS_DIR@"
+config.llvm_build_mode = "@LLVM_BUILD_MODE@"
+config.quark_obj_root = "@QUARK_BINARY_DIR@"
+
+# Let the main config do the real work.
+lit_config.load_config(config, "@QUARK_SOURCE_DIR@/test/Unit/lit.cfg.py")

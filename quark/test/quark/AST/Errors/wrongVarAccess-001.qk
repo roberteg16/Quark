@@ -1,0 +1,11 @@
+// RUN: not quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Type {
+  a *i32
+}
+
+fn foo: -> void {
+  var bar : Type;
+  bar->a;
+}
+// CHECK:Error: Did you mean '.'?

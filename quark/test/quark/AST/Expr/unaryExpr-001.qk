@@ -1,0 +1,39 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var flag := false;
+  !flag;
+//      CHECK:UnaryExpr: b1 (!)
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: b1 flag
+
+  var i := 1;
+  -i;
+//      CHECK:UnaryExpr: i32 (-)
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: i32 i
+
+  -5;
+//      CHECK:UnaryExpr: i32 (-)
+// CHECK-NEXT:IntegerExpr: i32 5
+
+  &flag;
+//      CHECK:UnaryExpr: *b1 (&)
+// CHECK-NEXT:VarRefExpr: b1 flag
+
+  var ptr : *i32;
+  *ptr;
+//      CHECK:UnaryExpr: i32 (*)
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: *i32 ptr
+
+  &*ptr;
+//      CHECK:UnaryExpr: *i32 (&)
+// CHECK-NEXT:UnaryExpr: i32 (*)
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
+// CHECK-NEXT:VarRefExpr: *i32 ptr
+
+  &ptr;
+//      CHECK:UnaryExpr: **i32 (&)
+// CHECK-NEXT:VarRefExpr: *i32 ptr
+}

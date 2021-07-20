@@ -1,0 +1,10 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+type Bar {
+
+}
+
+fn (bar *Bar) foo: -> void {
+  bar;
+// CHECK:VarRefExpr: *Bar bar
+}
