@@ -2,7 +2,7 @@
 
 #include <quark/Frontend/AST/Expr.h>
 
-#include "../../build/tools/quark/lib/Frontend/QuarkParser.hpp"
+#include "../../build/tools/quark/lib/Frontend/Parsing/QuarkParser.hpp"
 
 #include <llvm/Support/Casting.h>
 

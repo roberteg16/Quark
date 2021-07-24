@@ -7,7 +7,7 @@
 #include <quark/Frontend/AST/Type.h>
 #include <quark/Frontend/Parsing/ParserUtils.h>
 
-#include "../../build/tools/quark/lib/Frontend/QuarkParser.hpp"
+#include "../../build/tools/quark/lib/Frontend/Parsing/QuarkParser.hpp"
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/Support/Debug.h>

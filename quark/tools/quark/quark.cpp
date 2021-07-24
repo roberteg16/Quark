@@ -12,7 +12,7 @@
 #include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/InitLLVM.h>
 
-#include "../../build/tools/quark/lib/Frontend/QuarkParser.hpp"
+#include "../../build/tools/quark/lib/Frontend/Parsing/QuarkParser.hpp"
 #include "Flags.h"
 
 using namespace quark;
