@@ -9,8 +9,6 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
 
-#include "../../build/tools/quark/lib/Frontend/QuarkParser.hpp"
-
 using namespace quark;
 
 void Expr::print(llvm::raw_ostream &out) const { ASTDumper{out}.dump(*this); }
