@@ -1,5 +1,3 @@
-#include "quark/Frontend/AST/Expr.h"
-#include "quark/Frontend/AST/Type.h"
 #include <quark/Frontend/AST/ASTDumper.h>
 
 using namespace quark;
