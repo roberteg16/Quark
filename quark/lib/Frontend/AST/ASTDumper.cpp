@@ -326,22 +326,6 @@ void ASTDumper::VisitBooleanExpr(const BooleanExpr &expr) {
   RSO.str().clear();
 }
 
-void ASTDumper::VisitBuiltinType(const BuiltinType &builtinType) {
-  builtinType.print(RSO);
-}
-
-void ASTDumper::VisitAliasType(const AliasType &aliasType) {
-  aliasType.print(RSO);
-}
-
-void ASTDumper::VisitCompoundType(const CompoundType &compoundType) {
-  compoundType.print(RSO);
-}
-
-void ASTDumper::VisitPtrType(const PtrType &ptrType) { ptrType.print(RSO); }
-
-void ASTDumper::VisitArrayType(const ArrayType &arrayType) {
-  arrayType.print(RSO);
-}
-
-void ASTDumper::VisitFuncType(const FuncType &funcType) { funcType.print(RSO); }
+#define QK_TYPE(ID)                                                            \
+  void ASTDumper::Visit##ID(const ID &ID) { ID.print(RSO); }
+#include <quark/Frontend/AST/ASTNodes.def>

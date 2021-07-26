@@ -283,47 +283,9 @@ public:
   virtual void VisitExportModule(llvm::StringRef) {}
   virtual void VisitImportModule(llvm::StringRef) {}
 
-  virtual void VisitAllocExpr(const AllocExpr &expr) {}
-  virtual void VisitFunctionCallExpr(const FunctionCallExpr &expr) {}
-  virtual void VisitMemberCallExpr(const MemberCallExpr &expr) {}
-  virtual void VisitMemberExpr(const MemberExpr &expr) {}
-  virtual void VisitStringExpr(const StringExpr &expr) {}
-  virtual void VisitIntegerExpr(const IntegerExpr &expr) {}
-  virtual void VisitFloatingExpr(const FloatingExpr &expr) {}
-  virtual void VisitCharExpr(const CharExpr &expr) {}
-  virtual void VisitVarRefExpr(const VarRefExpr &expr) {}
-  virtual void VisitBinaryExpr(const BinaryExpr &expr) {}
-  virtual void VisitUnaryExpr(const UnaryExpr &expr) {}
-  virtual void VisitDereferenceExpr(const DereferenceExpr &expr) {}
-  virtual void VisitAddressofExpr(const AddressofExpr &expr) {}
-  virtual void VisitArrayAccessExpr(const ArrayAccessExpr &expr) {}
-  virtual void VisitExplicitCastExpr(const ExplicitCastExpr &expr) {}
-  virtual void VisitImplicitCastExpr(const ImplicitCastExpr &expr) {}
-  virtual void VisitBooleanExpr(const BooleanExpr &expr) {}
-
-  virtual void VisitBlockStmt(const BlockStmt &stmt) {}
-  virtual void VisitDeallocStmt(const DeallocStmt &stmt) {}
-  virtual void VisitDeferStmt(const DeferStmt &stmt) {}
-  virtual void VisitExprStmt(const ExprStmt &stmt) {}
-  virtual void VisitForStmt(const ForStmt &stmt) {}
-  virtual void VisitIfStmt(const IfStmt &stmt) {}
-  virtual void VisitReturnStmt(const ReturnStmt &stmt) {}
-  virtual void VisitVarDeclStmt(const VarDeclStmt &stmt) {}
-  virtual void VisitWhileStmt(const WhileStmt &stmt) {}
-  virtual void VisitPrintStmt(const PrintStmt &stmt) {}
-
-  virtual void VisitVarDecl(const VarDecl &) {}
-  virtual void VisitTypeDecl(const TypeDecl &decl) {}
-  virtual void VisitTypeFieldDecl(const TypeFieldDecl &) {}
-  virtual void VisitFuncDecl(const FuncDecl &decl) {}
-  virtual void VisitAliasTypeDecl(const AliasTypeDecl &) {}
-
-  virtual void VisitBuiltinType(const BuiltinType &) {}
-  virtual void VisitAliasType(const AliasType &) {}
-  virtual void VisitCompoundType(const CompoundType &) {}
-  virtual void VisitPtrType(const PtrType &) {}
-  virtual void VisitArrayType(const ArrayType &) {}
-  virtual void VisitFuncType(const FuncType &) {}
+#define QK_ASTNODE(ID)                                                         \
+  virtual void Visit##ID(const ID &expr) {}
+#include "ASTNodes.def"
 };
 
 } // namespace quark

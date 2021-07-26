@@ -1,6 +1,7 @@
 #ifndef __QUARK_FRONTEND_AST_DECL_H__
 #define __QUARK_FRONTEND_AST_DECL_H__
 
+#include <quark/Frontend/AST/Stmt.h>
 #include <quark/Frontend/AST/Type.h>
 
 #include <llvm/ADT/Optional.h>
@@ -16,11 +17,8 @@ struct Stmt;
 struct BlockStmt;
 
 enum class DeclKind {
-  VarDecl = 0,
-  FuncDecl,
-  TypeFieldDecl,
-  TypeDecl,
-  AliasTypeDecl
+#define QK_DECL(ID) ID,
+#include "ASTNodes.def"
 };
 
 struct Decl {
@@ -67,7 +65,7 @@ private:
 };
 
 struct FuncDecl : public Decl {
-  FuncDecl(llvm::StringRef name);
+  FuncDecl(llvm::StringRef name) : Decl(DeclKind::FuncDecl, name) {}
   virtual ~FuncDecl();
 
   struct FuncSignature {

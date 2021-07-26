@@ -1,20 +1,18 @@
 #include <quark/Frontend/AST/Decl.h>
 
 #include <quark/Frontend/AST/ASTDumper.h>
-#include <quark/Frontend/AST/Expr.h>
-#include <quark/Frontend/AST/Stmt.h>
-#include <quark/Frontend/AST/Type.h>
 
 #include <llvm/Support/Debug.h>
-#include <llvm/Support/raw_ostream.h>
 
 using namespace quark;
 
 void Decl::print(llvm::raw_ostream &out) const { ASTDumper{out}.dump(*this); }
-
 void Decl::dump() const { print(llvm::dbgs()); }
 
 Decl::~Decl() {}
+#define QK_DECL(NODE)                                                          \
+  NODE::~NODE() {}
+#include <quark/Frontend/AST/ASTNodes.def>
 
 llvm::StringRef quark::ToString(VarDeclKind kind) {
   switch (kind) {
@@ -29,15 +27,10 @@ llvm::StringRef quark::ToString(VarDeclKind kind) {
   }
 }
 
-VarDecl::~VarDecl() {}
-
 bool VarDecl::operator==(const VarDecl &rhs) const {
   return this->Kind == rhs.Kind && this->Name == rhs.Name &&
          &this->Type == &rhs.Type;
 }
-
-FuncDecl::FuncDecl(llvm::StringRef name) : Decl(DeclKind::FuncDecl, name) {}
-FuncDecl::~FuncDecl() {}
 
 void FuncDecl::fillFunction(
     llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
@@ -65,6 +58,30 @@ void FuncDecl::fillFunction(
   FuncType.Params = std::move(paramTypes2);
 }
 
+bool FuncDecl::operator==(const FuncDecl &rhs) const {
+  return Signature == rhs.Signature;
+}
+
+const TypeFieldDecl *TypeDecl::findField(llvm::StringRef name) const {
+  for (const std::unique_ptr<TypeFieldDecl> &field : FieldDecls) {
+    if (field->Name == name) {
+      return field.get();
+    }
+  }
+  return nullptr;
+}
+
+FuncDecl::FuncSignature::FuncSignature(
+    llvm::StringRef name, llvm::ArrayRef<std::unique_ptr<Expr>> params,
+    std::unique_ptr<Type> reciver)
+    : Name(name), Reciver(std::move(reciver)) {
+  llvm::SmallVector<std::unique_ptr<Type>, 4> paramTypes;
+  for (auto &expr : params) {
+    paramTypes.push_back(expr->getType().clone());
+  }
+  ParamTypes = std::move(paramTypes);
+}
+
 static bool AreReciversEqual(const Type *lhs, const Type *rhs) {
   if ((lhs && !rhs) || (!lhs && rhs)) {
     return false;
@@ -73,10 +90,6 @@ static bool AreReciversEqual(const Type *lhs, const Type *rhs) {
     return true;
   }
   return lhs->desugar() == rhs->desugar();
-}
-
-bool FuncDecl::operator==(const FuncDecl &rhs) const {
-  return Signature == rhs.Signature;
 }
 
 bool FuncDecl::FuncSignature::operator==(const FuncSignature &rhs) const {
@@ -106,29 +119,4 @@ void FuncDecl::FuncSignature::print(llvm::raw_ostream &out) const {
     out << (i == ParamTypes.size() - 1 ? "" : ", ");
   }
 }
-
 void FuncDecl::FuncSignature::dump() const { print(llvm::dbgs()); }
-
-TypeFieldDecl::~TypeFieldDecl() {}
-
-TypeDecl::~TypeDecl() {}
-
-const TypeFieldDecl *TypeDecl::findField(llvm::StringRef name) const {
-  for (const std::unique_ptr<TypeFieldDecl> &field : FieldDecls) {
-    if (field->Name == name) {
-      return field.get();
-    }
-  }
-  return nullptr;
-}
-
-FuncDecl::FuncSignature::FuncSignature(
-    llvm::StringRef name, llvm::ArrayRef<std::unique_ptr<Expr>> params,
-    std::unique_ptr<Type> reciver)
-    : Name(name), Reciver(std::move(reciver)) {
-  llvm::SmallVector<std::unique_ptr<Type>, 4> paramTypes;
-  for (auto &expr : params) {
-    paramTypes.push_back(expr->getType().clone());
-  }
-  ParamTypes = std::move(paramTypes);
-}

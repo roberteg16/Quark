@@ -1,9 +1,6 @@
 #include <quark/Frontend/AST/Expr.h>
 
 #include <quark/Frontend/AST/ASTDumper.h>
-#include <quark/Frontend/AST/Decl.h>
-#include <quark/Frontend/AST/Stmt.h>
-#include <quark/Frontend/AST/Type.h>
 
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/Debug.h>
@@ -12,69 +9,13 @@
 using namespace quark;
 
 void Expr::print(llvm::raw_ostream &out) const { ASTDumper{out}.dump(*this); }
-
 void Expr::dump() const { print(llvm::dbgs()); }
 
+// ==== Destructors ==== //
 Expr::~Expr() {}
-
-llvm::StringRef quark::ToString(BinaryOperatorKind binOp) {
-  switch (binOp) {
-  case BinaryOperatorKind::Add:
-    return "+";
-  case BinaryOperatorKind::Minus:
-    return "-";
-  case BinaryOperatorKind::Mul:
-    return "*";
-  case BinaryOperatorKind::Div:
-    return "/";
-  case BinaryOperatorKind::Mod:
-    return "%";
-  case BinaryOperatorKind::Assign:
-    return "=";
-  case BinaryOperatorKind::LogicalNotEquals:
-    return "!=";
-  case BinaryOperatorKind::LogicalEquals:
-    return "==";
-  case BinaryOperatorKind::LogicalAnd:
-    return "&&";
-  case BinaryOperatorKind::LogicalOr:
-    return "||";
-  case BinaryOperatorKind::LogicalLess:
-    return "<";
-  case BinaryOperatorKind::LogicalLessEqual:
-    return "<=";
-  case BinaryOperatorKind::LogicalGreater:
-    return ">";
-  case BinaryOperatorKind::LogicalGreaterEqual:
-    return ">=";
-  }
-}
-
-llvm::StringRef quark::ToString(UnaryOperatorKind unaryOp) {
-  switch (unaryOp) {
-  case UnaryOperatorKind::LogicalNegation:
-    return "!";
-  case UnaryOperatorKind::ArithmeticNegation:
-    return "-";
-  case UnaryOperatorKind::Dereference:
-    return "*";
-  case UnaryOperatorKind::AddressOf:
-    return "&";
-  }
-}
-
-unsigned MemberExpr::getIdxAccesses() const {
-  auto *compoundType = CheckCompoundOrTypeToCompound(Accessed->ExprType.get());
-  assert(compoundType);
-
-  for (unsigned i = 0; i < compoundType->Decl.FieldDecls.size(); i++) {
-    if (compoundType->Decl.FieldDecls[i].get() == &Field) {
-      return i;
-    }
-  }
-
-  llvm::llvm_unreachable_internal("The type field must be found");
-}
+#define QK_EXPR(NODE)                                                          \
+  NODE::~NODE() {}
+#include <quark/Frontend/AST/ASTNodes.def>
 
 // ==== Constructors ==== //
 BinaryExpr::BinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
@@ -180,19 +121,6 @@ ExplicitCastExpr::ExplicitCastExpr(std::unique_ptr<Type> toType,
     : Expr(ExprKind::ExplicitCastExpr, expr->getValueKind(), std::move(toType)),
       ConvertingExpr(std::move(expr)) {}
 
-// ==== End of constructors ==== //
-
-void TypeAccess::dump() {
-  if (Kind == TypeAccessKind::Pointer) {
-    llvm::dbgs() << "->";
-  } else if (Kind == TypeAccessKind::Value) {
-    llvm::dbgs() << ".";
-  } else {
-    llvm::dbgs() << "<unk>";
-  }
-  llvm::dbgs() << Name;
-}
-
 std::unique_ptr<Expr> ImplicitCastExpr::Create(ImplicitCastKind kind,
                                                std::unique_ptr<Expr> expr) {
   if (kind == ImplicitCastKind::LValueToRValue) {
@@ -214,4 +142,63 @@ std::unique_ptr<Expr> ImplicitCastExpr::Create(ImplicitCastKind kind,
   }
   return std::make_unique<ImplicitCastExpr>(std::move(expr), kind,
                                             expr->ValueKind);
+}
+
+llvm::StringRef quark::ToString(BinaryOperatorKind binOp) {
+  switch (binOp) {
+  case BinaryOperatorKind::Add:
+    return "+";
+  case BinaryOperatorKind::Minus:
+    return "-";
+  case BinaryOperatorKind::Mul:
+    return "*";
+  case BinaryOperatorKind::Div:
+    return "/";
+  case BinaryOperatorKind::Mod:
+    return "%";
+  case BinaryOperatorKind::Assign:
+    return "=";
+  case BinaryOperatorKind::LogicalNotEquals:
+    return "!=";
+  case BinaryOperatorKind::LogicalEquals:
+    return "==";
+  case BinaryOperatorKind::LogicalAnd:
+    return "&&";
+  case BinaryOperatorKind::LogicalOr:
+    return "||";
+  case BinaryOperatorKind::LogicalLess:
+    return "<";
+  case BinaryOperatorKind::LogicalLessEqual:
+    return "<=";
+  case BinaryOperatorKind::LogicalGreater:
+    return ">";
+  case BinaryOperatorKind::LogicalGreaterEqual:
+    return ">=";
+  }
+}
+
+llvm::StringRef quark::ToString(UnaryOperatorKind unaryOp) {
+  switch (unaryOp) {
+  case UnaryOperatorKind::LogicalNegation:
+    return "!";
+  case UnaryOperatorKind::ArithmeticNegation:
+    return "-";
+  case UnaryOperatorKind::Dereference:
+    return "*";
+  case UnaryOperatorKind::AddressOf:
+    return "&";
+  }
+}
+
+unsigned MemberExpr::getIdxAccesses() const {
+  auto *compoundType = CheckCompoundOrTypeToCompound(Accessed->ExprType.get());
+  assert(compoundType);
+
+  for (unsigned i = 0; i < compoundType->Decl.FieldDecls.size(); i++) {
+    if (compoundType->Decl.FieldDecls[i].get() == &Field) {
+      return i;
+    }
+  }
+
+  llvm::llvm_unreachable_internal("The type field must be found");
 }

@@ -1,0 +1,67 @@
+#ifndef QK_ASTNODE
+#define QK_ASTNODE(CODE)
+#endif
+
+#ifndef QK_STMT
+#define QK_STMT(ID) QK_ASTNODE(ID)
+#endif
+
+#ifndef QK_EXPR
+#define QK_EXPR(ID) QK_ASTNODE(ID)
+#endif
+
+#ifndef QK_DECL
+#define QK_DECL(ID) QK_ASTNODE(ID)
+#endif
+
+#ifndef QK_TYPE
+#define QK_TYPE(ID) QK_ASTNODE(ID)
+#endif
+
+QK_STMT(BlockStmt)
+QK_STMT(ForStmt)
+QK_STMT(IfStmt)
+QK_STMT(WhileStmt)
+QK_STMT(ReturnStmt)
+QK_STMT(DeferStmt)
+QK_STMT(DeallocStmt)
+QK_STMT(VarDeclStmt)
+QK_STMT(ExprStmt)
+QK_STMT(PrintStmt)
+
+QK_EXPR(BinaryExpr)
+QK_EXPR(UnaryExpr)
+QK_EXPR(FunctionCallExpr)
+QK_EXPR(MemberCallExpr)
+QK_EXPR(MemberExpr)
+QK_EXPR(VarRefExpr)
+QK_EXPR(AllocExpr)
+QK_EXPR(IntegerExpr)
+QK_EXPR(CharExpr)
+QK_EXPR(FloatingExpr)
+QK_EXPR(StringExpr)
+QK_EXPR(BooleanExpr)
+QK_EXPR(DereferenceExpr)
+QK_EXPR(AddressofExpr)
+QK_EXPR(ArrayAccessExpr)
+QK_EXPR(ExplicitCastExpr)
+QK_EXPR(ImplicitCastExpr)
+
+QK_DECL(VarDecl)
+QK_DECL(FuncDecl)
+QK_DECL(TypeFieldDecl)
+QK_DECL(TypeDecl)
+QK_DECL(AliasTypeDecl)
+
+QK_TYPE(BuiltinType)
+QK_TYPE(AliasType)
+QK_TYPE(CompoundType)
+QK_TYPE(PtrType)
+QK_TYPE(ArrayType)
+QK_TYPE(FuncType)
+
+#undef QK_TYPE
+#undef QK_DECL
+#undef QK_EXPR
+#undef QK_STMT
+#undef QK_ASTNODE

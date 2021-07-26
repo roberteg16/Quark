@@ -1,9 +1,7 @@
 #ifndef __QUARK_FRONTEND_AST_STMT_H__
 #define __QUARK_FRONTEND_AST_STMT_H__
 
-#include <quark/Frontend/AST/Decl.h>
 #include <quark/Frontend/AST/Expr.h>
-#include <quark/Frontend/AST/Type.h>
 
 #include <llvm/ADT/Optional.h>
 #include <llvm/ADT/SmallVector.h>
@@ -20,16 +18,8 @@ struct Expr;
 struct VarRefExpr;
 
 enum class StmtKind {
-  BlockStmt = 0,
-  ForStmt,
-  IfStmt,
-  WhileStmt,
-  ReturnStmt,
-  DeferStmt,
-  DeallocStmt,
-  VarDeclStmt,
-  ExprStmt,
-  PrintStmt
+#define QK_STMT(ID) ID,
+#include "ASTNodes.def"
 };
 
 struct Stmt {
@@ -93,6 +83,7 @@ struct IfStmt : public Stmt {
     CondAndStmt(CondAndStmt &&) = default;
     CondAndStmt &operator=(CondAndStmt &&) = default;
     CondAndStmt(std::unique_ptr<Expr> cond, std::unique_ptr<Stmt> stmt);
+
     std::unique_ptr<Expr> Cond;
     std::unique_ptr<Stmt> Stmt;
   };

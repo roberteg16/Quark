@@ -12,12 +12,8 @@ struct TypeDecl;
 struct Expr;
 
 enum class TypeKind {
-  BuiltinType = 0,
-  AliasType,
-  CompoundType,
-  PtrType,
-  ArrayType,
-  FuncType
+#define QK_TYPE(ID) ID,
+#include "ASTNodes.def"
 };
 
 struct Type {
@@ -47,18 +43,8 @@ protected:
 };
 
 enum class BuiltinTypeKind {
-  // clang-format off
-  Void, b1,
-  u8,  i8,
-  u16, i16,
-  u32, i32,
-  u64, i64,
-  f32, f64,
-  f80,
-  u128, i128,
-  u256, i256,
-  u512, i512
-  // clang-format on
+#define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED) TYPE,
+#include "BuiltinTypes.def"
 };
 
 auto GetTypeName(BuiltinTypeKind type) -> llvm::StringRef;

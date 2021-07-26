@@ -1,6 +1,5 @@
 #include <quark/Frontend/AST/Type.h>
 
-#include <quark/Frontend/AST/ASTDumper.h>
 #include <quark/Frontend/AST/Decl.h>
 
 #include <llvm/Support/Casting.h>
@@ -11,189 +10,58 @@ using namespace quark;
 
 llvm::StringRef quark::GetTypeName(BuiltinTypeKind type) {
   switch (type) {
-  case BuiltinTypeKind::Void:
-    return "void";
-  case BuiltinTypeKind::b1:
-    return "b1";
-  case BuiltinTypeKind::i8:
-    return "i8";
-  case BuiltinTypeKind::u8:
-    return "u8";
-  case BuiltinTypeKind::i16:
-    return "i16";
-  case BuiltinTypeKind::u16:
-    return "u16";
-  case BuiltinTypeKind::i32:
-    return "i32";
-  case BuiltinTypeKind::u32:
-    return "u32";
-  case BuiltinTypeKind::i64:
-    return "i64";
-  case BuiltinTypeKind::u64:
-    return "u64";
-  case BuiltinTypeKind::f32:
-    return "f32";
-  case BuiltinTypeKind::f64:
-    return "f64";
-  case BuiltinTypeKind::f80:
-    return "f80";
-  case BuiltinTypeKind::i128:
-    return "i128";
-  case BuiltinTypeKind::u128:
-    return "u128";
-  case BuiltinTypeKind::i256:
-    return "i256";
-  case BuiltinTypeKind::u256:
-    return "u256";
-  case BuiltinTypeKind::i512:
-    return "i512";
-  case BuiltinTypeKind::u512:
-    return "u512";
+#define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED)                             \
+  case BuiltinTypeKind::TYPE:                                                  \
+    return #NAME;
+#include <quark/Frontend/AST/BuiltinTypes.def>
   }
 }
 
 std::size_t quark::GetBytes(BuiltinTypeKind type) {
   switch (type) {
-  case BuiltinTypeKind::Void:
-    return 0;
-  case BuiltinTypeKind::b1:
-  case BuiltinTypeKind::i8:
-  case BuiltinTypeKind::u8:
-    return 1;
-  case BuiltinTypeKind::i16:
-  case BuiltinTypeKind::u16:
-    return 2;
-  case BuiltinTypeKind::i32:
-  case BuiltinTypeKind::u32:
-    return 4;
-  case BuiltinTypeKind::i64:
-  case BuiltinTypeKind::u64:
-    return 8;
-  case BuiltinTypeKind::f32:
-    return 4;
-  case BuiltinTypeKind::f64:
-    return 8;
-  case BuiltinTypeKind::f80:
-    return 16;
-  case BuiltinTypeKind::i128:
-  case BuiltinTypeKind::u128:
-    return 16;
-  case BuiltinTypeKind::i256:
-  case BuiltinTypeKind::u256:
-    return 32;
-  case BuiltinTypeKind::i512:
-  case BuiltinTypeKind::u512:
-    return 64;
+#define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED)                             \
+  case BuiltinTypeKind::TYPE:                                                  \
+    return BYTES;
+#include <quark/Frontend/AST/BuiltinTypes.def>
   }
 }
 
 bool quark::IsSigned(BuiltinTypeKind type) {
   switch (type) {
-  case BuiltinTypeKind::i8:
-  case BuiltinTypeKind::i16:
-  case BuiltinTypeKind::i32:
-  case BuiltinTypeKind::i64:
-  case BuiltinTypeKind::i128:
-  case BuiltinTypeKind::i256:
-  case BuiltinTypeKind::i512:
-  case BuiltinTypeKind::f32:
-  case BuiltinTypeKind::f64:
-  case BuiltinTypeKind::f80:
-    return true;
-  case BuiltinTypeKind::Void:
-  case BuiltinTypeKind::b1:
-  case BuiltinTypeKind::u8:
-  case BuiltinTypeKind::u16:
-  case BuiltinTypeKind::u32:
-  case BuiltinTypeKind::u64:
-  case BuiltinTypeKind::u128:
-  case BuiltinTypeKind::u256:
-  case BuiltinTypeKind::u512:
-    return false;
+#define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED)                             \
+  case BuiltinTypeKind::TYPE:                                                  \
+    return SIGNED;
+#include <quark/Frontend/AST/BuiltinTypes.def>
   }
 }
 
-bool quark::IsUnsigned(BuiltinTypeKind type) {
-  switch (type) {
-  case BuiltinTypeKind::Void:
-  case BuiltinTypeKind::b1:
-  case BuiltinTypeKind::i8:
-  case BuiltinTypeKind::i16:
-  case BuiltinTypeKind::i32:
-  case BuiltinTypeKind::i64:
-  case BuiltinTypeKind::i128:
-  case BuiltinTypeKind::i256:
-  case BuiltinTypeKind::i512:
-  case BuiltinTypeKind::f32:
-  case BuiltinTypeKind::f64:
-  case BuiltinTypeKind::f80:
-    return false;
-  case BuiltinTypeKind::u8:
-  case BuiltinTypeKind::u16:
-  case BuiltinTypeKind::u32:
-  case BuiltinTypeKind::u64:
-  case BuiltinTypeKind::u128:
-  case BuiltinTypeKind::u256:
-  case BuiltinTypeKind::u512:
-    return true;
-  }
-}
+bool quark::IsUnsigned(BuiltinTypeKind type) { return !IsSigned(type); }
 
 bool quark::IsFloatingPoint(BuiltinTypeKind type) {
-  switch (type) {
-  case BuiltinTypeKind::Void:
-  case BuiltinTypeKind::b1:
-  case BuiltinTypeKind::i8:
-  case BuiltinTypeKind::u8:
-  case BuiltinTypeKind::i16:
-  case BuiltinTypeKind::u16:
-  case BuiltinTypeKind::i32:
-  case BuiltinTypeKind::u32:
-  case BuiltinTypeKind::i64:
-  case BuiltinTypeKind::u64:
-  case BuiltinTypeKind::i128:
-  case BuiltinTypeKind::u128:
-  case BuiltinTypeKind::i256:
-  case BuiltinTypeKind::u256:
-  case BuiltinTypeKind::i512:
-  case BuiltinTypeKind::u512:
-    return false;
-  case BuiltinTypeKind::f32:
-  case BuiltinTypeKind::f64:
-  case BuiltinTypeKind::f80:
-    return true;
+#define QK_BUILTIN_FLOATING_TYPE(TYPE, BYTES, SIGNED)                          \
+  if (type == BuiltinTypeKind::TYPE) {                                         \
+    return true;                                                               \
   }
+#include <quark/Frontend/AST/BuiltinTypes.def>
+  return false;
 }
 
 bool quark::IsInteger(BuiltinTypeKind type) {
-  switch (type) {
-  case BuiltinTypeKind::i8:
-  case BuiltinTypeKind::u8:
-  case BuiltinTypeKind::i16:
-  case BuiltinTypeKind::u16:
-  case BuiltinTypeKind::i32:
-  case BuiltinTypeKind::u32:
-  case BuiltinTypeKind::i64:
-  case BuiltinTypeKind::u64:
-    return true;
-  case BuiltinTypeKind::b1:
-  case BuiltinTypeKind::Void:
-  case BuiltinTypeKind::i128:
-  case BuiltinTypeKind::u128:
-  case BuiltinTypeKind::i256:
-  case BuiltinTypeKind::u256:
-  case BuiltinTypeKind::i512:
-  case BuiltinTypeKind::u512:
-  case BuiltinTypeKind::f32:
-  case BuiltinTypeKind::f64:
-  case BuiltinTypeKind::f80:
-    return false;
+#define QK_BUILTIN_INTEGER_TYPE(TYPE, BYTES, SIGNED)                           \
+  if (type == BuiltinTypeKind::TYPE) {                                         \
+    return true;                                                               \
   }
+#include <quark/Frontend/AST/BuiltinTypes.def>
+  return false;
 }
 
 bool quark::IsVector(BuiltinTypeKind type) {
-  return !IsInteger(type) && !IsFloatingPoint(type) &&
-         type != BuiltinTypeKind::Void && !IsBoolean(type);
+#define QK_BUILTIN_VECTOR_TYPE(TYPE, BYTES, SIGNED)                            \
+  if (type == BuiltinTypeKind::TYPE) {                                         \
+    return true;                                                               \
+  }
+#include <quark/Frontend/AST/BuiltinTypes.def>
+  return false;
 }
 
 bool quark::IsBoolean(BuiltinTypeKind type) {
@@ -345,7 +213,6 @@ bool FuncType::operator==(const Type &rhs) const {
 
   return true;
 }
-// ==== End of comparations ==== //
 
 //== Start of dumpings ==//
 void BuiltinType::print(llvm::raw_ostream &out) const { out << Name; }

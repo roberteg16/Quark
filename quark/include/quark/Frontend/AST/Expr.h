@@ -17,23 +17,8 @@ struct Decl;
 struct LexContext;
 
 enum class ExprKind {
-  BinaryExpr,
-  UnaryExpr,
-  FunctionCallExpr,
-  MemberCallExpr,
-  MemberExpr,
-  VarRefExpr,
-  AllocExpr,
-  IntegerExpr,
-  CharExpr,
-  FloatingExpr,
-  StringExpr,
-  BooleanExpr,
-  DereferenceExpr,
-  AddressofExpr,
-  ArrayAccessExpr,
-  ExplicitCastExpr,
-  ImplicitCastExpr
+#define QK_EXPR(ID) ID,
+#include "ASTNodes.def"
 };
 
 enum ValueTypeKind { LeftValue = 0, RightValue };
@@ -83,7 +68,7 @@ struct BinaryExpr : public Expr {
   BinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
              std::unique_ptr<Expr> rhs, std::unique_ptr<Type> newType,
              ValueTypeKind valueKind);
-  virtual ~BinaryExpr() {}
+  virtual ~BinaryExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::BinaryExpr;
@@ -108,7 +93,7 @@ struct UnaryExpr : public Expr {
             ValueTypeKind valueKind);
   UnaryExpr(UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
             std::unique_ptr<Type> newType, ValueTypeKind valueKind);
-  virtual ~UnaryExpr() {}
+  virtual ~UnaryExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::UnaryExpr;
@@ -120,7 +105,7 @@ struct UnaryExpr : public Expr {
 
 struct ExplicitCastExpr : public Expr {
   ExplicitCastExpr(std::unique_ptr<Type> toType, std::unique_ptr<Expr> expr);
-  virtual ~ExplicitCastExpr() {}
+  virtual ~ExplicitCastExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::ExplicitCastExpr;
@@ -134,7 +119,7 @@ enum ImplicitCastKind { LValueToRValue = 0, ToBool };
 struct ImplicitCastExpr : public Expr {
   ImplicitCastExpr(std::unique_ptr<Expr> expr, ImplicitCastKind kind,
                    ValueTypeKind valueKind);
-  virtual ~ImplicitCastExpr() {}
+  virtual ~ImplicitCastExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::ImplicitCastExpr;
@@ -150,7 +135,7 @@ struct ImplicitCastExpr : public Expr {
 struct FunctionCallExpr : public Expr {
   FunctionCallExpr(const FuncDecl &funcDecl,
                    llvm::SmallVector<std::unique_ptr<Expr>, 4> params);
-  virtual ~FunctionCallExpr() {}
+  virtual ~FunctionCallExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::FunctionCallExpr;
@@ -162,7 +147,7 @@ struct FunctionCallExpr : public Expr {
 
 struct MemberExpr : public Expr {
   MemberExpr(std::unique_ptr<Expr> expr, const TypeFieldDecl &decl);
-  virtual ~MemberExpr() {}
+  virtual ~MemberExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::MemberExpr;
@@ -183,8 +168,6 @@ struct TypeAccess {
       : Kind(k), Name(std::move(name)),
         ArrayAccesses(std::move(arrayAccesses)) {}
 
-  void dump();
-
   TypeAccessKind Kind;
   llvm::SmallString<10> Name;
   std::vector<std::unique_ptr<Expr>> ArrayAccesses;
@@ -192,7 +175,7 @@ struct TypeAccess {
 
 struct VarRefExpr : public Expr {
   VarRefExpr(const VarDecl &var);
-  virtual ~VarRefExpr() {}
+  virtual ~VarRefExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::VarRefExpr;
@@ -204,7 +187,7 @@ struct VarRefExpr : public Expr {
 struct ArrayAccessExpr : public Expr {
   ArrayAccessExpr(std::unique_ptr<Expr> refVar, std::unique_ptr<Type> type,
                   std::unique_ptr<Expr> idx);
-  virtual ~ArrayAccessExpr() {}
+  virtual ~ArrayAccessExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::ArrayAccessExpr;
@@ -217,7 +200,7 @@ struct ArrayAccessExpr : public Expr {
 struct MemberCallExpr : public Expr {
   MemberCallExpr(const FuncDecl &funcDecl, std::unique_ptr<Expr> memberExpr,
                  llvm::SmallVectorImpl<std::unique_ptr<Expr>> &params);
-  virtual ~MemberCallExpr() {}
+  virtual ~MemberCallExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::MemberCallExpr;
@@ -230,7 +213,7 @@ struct MemberCallExpr : public Expr {
 
 struct AllocExpr : public Expr {
   AllocExpr(std::unique_ptr<Type> type, std::unique_ptr<Expr> size);
-  virtual ~AllocExpr() {}
+  virtual ~AllocExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::AllocExpr;
@@ -242,7 +225,7 @@ struct AllocExpr : public Expr {
 
 struct StringExpr : public Expr {
   StringExpr(llvm::SmallString<40> v);
-  virtual ~StringExpr() {}
+  virtual ~StringExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::StringExpr;
@@ -253,7 +236,7 @@ struct StringExpr : public Expr {
 
 struct IntegerExpr : public Expr {
   IntegerExpr(long long v);
-  virtual ~IntegerExpr() {}
+  virtual ~IntegerExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::IntegerExpr;
@@ -264,7 +247,7 @@ struct IntegerExpr : public Expr {
 
 struct CharExpr : public Expr {
   CharExpr(char v);
-  virtual ~CharExpr() {}
+  virtual ~CharExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::CharExpr;
@@ -275,7 +258,7 @@ struct CharExpr : public Expr {
 
 struct FloatingExpr : public Expr {
   FloatingExpr(long double v);
-  virtual ~FloatingExpr() {}
+  virtual ~FloatingExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::FloatingExpr;
@@ -286,7 +269,7 @@ struct FloatingExpr : public Expr {
 
 struct BooleanExpr : public Expr {
   BooleanExpr(bool v);
-  virtual ~BooleanExpr() {}
+  virtual ~BooleanExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::BooleanExpr;
@@ -297,7 +280,7 @@ struct BooleanExpr : public Expr {
 
 struct DereferenceExpr : public Expr {
   DereferenceExpr(std::unique_ptr<Expr> expr);
-  virtual ~DereferenceExpr() {}
+  virtual ~DereferenceExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::DereferenceExpr;
@@ -308,7 +291,7 @@ struct DereferenceExpr : public Expr {
 
 struct AddressofExpr : public Expr {
   AddressofExpr(std::unique_ptr<Expr> expr);
-  virtual ~AddressofExpr() {}
+  virtual ~AddressofExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::AddressofExpr;
