@@ -11,6 +11,7 @@ struct SemaAnalyzer : public ASTVisitor {
 
   bool analyze(const SourceModule &);
 
+private:
   void VisitFunctionCallExpr(const FunctionCallExpr &) override;
   void VisitMemberCallExpr(const MemberCallExpr &) override;
   void VisitMemberExpr(const MemberExpr &) override;
@@ -18,6 +19,7 @@ struct SemaAnalyzer : public ASTVisitor {
   void VisitBinaryExpr(const BinaryExpr &) override;
   void VisitUnaryExpr(const UnaryExpr &) override;
   void VisitDereferenceExpr(const DereferenceExpr &) override;
+  void VisitAddressofExpr(const AddressofExpr &) override;
   void VisitArrayAccessExpr(const ArrayAccessExpr &) override;
 
   void VisitDeallocStmt(const DeallocStmt &) override;
@@ -30,6 +32,7 @@ struct SemaAnalyzer : public ASTVisitor {
   void VisitFuncDecl(const FuncDecl &) override;
 
   const FuncDecl *CurrentFunc;
+  bool Success = true;
 };
 
 } // namespace quark

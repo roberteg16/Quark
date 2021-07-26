@@ -10,16 +10,30 @@ using namespace quark;
 
 bool SemaAnalyzer::analyze(const SourceModule &sm) {
   visit(sm);
-  // TODO: returning inconditionally true, this should return depending on the
-  //       result of the analysis
-  return true;
+  return Success;
 }
 
 void SemaAnalyzer::VisitFunctionCallExpr(const FunctionCallExpr &expr) {
-  // TODO: Check params
+  auto &name = expr.FunctionDecl.Name;
+  auto &params = expr.Params;
+
+  FuncDecl::FuncSignature funcSignature(name, params);
+  if (!(funcSignature == expr.FunctionDecl.Signature)) {
+    llvm::outs() << "Error: FuncCall does not match with params";
+    Success = false;
+  }
 }
+
 void SemaAnalyzer::VisitMemberCallExpr(const MemberCallExpr &expr) {
-  // TODO: Check params y reciever
+  auto &name = expr.FunctionDecl.Name;
+  auto &params = expr.Params;
+  auto reciever = expr.Accessor->getType().clone();
+
+  FuncDecl::FuncSignature funcSignature(name, params, std::move(reciever));
+  if (!(funcSignature == expr.FunctionDecl.Signature)) {
+    llvm::outs() << "Error: MemberCall does not match with params/reciver";
+    Success = false;
+  }
 }
 
 void SemaAnalyzer::VisitMemberExpr(const MemberExpr &expr) {
@@ -29,84 +43,135 @@ void SemaAnalyzer::VisitMemberExpr(const MemberExpr &expr) {
 void SemaAnalyzer::VisitVarRefExpr(const VarRefExpr &expr) {
   if (expr.getType() != *expr.RefVar.Type) {
     llvm::outs() << "Error: Mistmatch type on varRefExpr";
+    Success = false;
   }
 }
 
 void SemaAnalyzer::VisitBinaryExpr(const BinaryExpr &expr) {
   if (expr.Lhs->getType() != expr.Rhs->getType()) {
-    llvm::outs() << "Error on binary expr";
-    expr.Lhs->dump();
-    expr.Rhs->dump();
+    llvm::outs() << "Error: Binary exprs with mistmatched types\n";
+    Success = false;
   }
 }
 
 void SemaAnalyzer::VisitUnaryExpr(const UnaryExpr &expr) {
   // TODO: Handle all cases of UnaryExpr
+  switch (expr.Op) {
+  case UnaryOperatorKind::AddressOf:
+  case UnaryOperatorKind::Dereference:
+    // Handed specifically on their callbacks
+    break;
+  case UnaryOperatorKind::ArithmeticNegation: {
+    auto *builtinType = llvm::dyn_cast<BuiltinType>(&*expr.ExprType);
+    if (!builtinType ||
+        (!IsInteger(builtinType->Kind) && IsFloatingPoint(builtinType->Kind))) {
+      llvm::outs() << "Error: Not possible to arithmetically negate a non "
+                      "integer nor float\n";
+      Success = false;
+    }
+    break;
+  }
+  case UnaryOperatorKind::LogicalNegation: {
+    auto *builtinType = llvm::dyn_cast<BuiltinType>(&*expr.ExprType);
+    if (!builtinType || !IsBoolean(builtinType->Kind)) {
+      llvm::outs() << "Error: Not possible to logically negate a non boolean\n";
+      Success = false;
+    }
+  }
+  }
 }
 
 void SemaAnalyzer::VisitDereferenceExpr(const DereferenceExpr &expr) {
-  // TODO: Refactor to handle all dereferences here
+  auto *arrayType = llvm::dyn_cast<ArrayType>(&expr.ExprType->desugar());
+  auto *ptrType = llvm::dyn_cast<PtrType>(&expr.ExprType->desugar());
+  if (!arrayType && !ptrType) {
+    llvm::outs() << "Error: Deferencing non array nor ptr type\n";
+    Success = false;
+  }
+}
+
+void SemaAnalyzer::VisitAddressofExpr(const AddressofExpr &addressOfExpr) {
+  if (addressOfExpr.isRValue()) {
+    llvm::outs() << "Error: Taking address of value without memory address\n";
+    Success = false;
+  }
 }
 
 void SemaAnalyzer::VisitArrayAccessExpr(const ArrayAccessExpr &expr) {
-  // TODO: Refactor to handle all array access here
+  auto *arrayType =
+      llvm::dyn_cast<ArrayType>(&expr.RefVar->getType().desugar());
+  auto *ptrType = llvm::dyn_cast<PtrType>(&expr.RefVar->getType().desugar());
+  if (!arrayType && !ptrType) {
+    llvm::outs() << "Error: Array access on non array type\n";
+    Success = false;
+  }
 }
 
 void SemaAnalyzer::VisitDeallocStmt(const DeallocStmt &stmt) {
-  // TODO: Refactor to handle dealloc here
+  auto *ptrType =
+      llvm::dyn_cast<PtrType>(&stmt.ExprToDealloc->getType().desugar());
+  if (!ptrType) {
+    llvm::outs() << "Error: Deallocing non pointer\n";
+    Success = false;
+  }
 }
 
-static void IsIntegerBuiltin(const Type &type) {
+static bool IsBooleanBuiltin(const Type &type) {
   const auto *condType = llvm::dyn_cast<BuiltinType>(&type);
-  if (!condType) {
-    llvm::outs() << "Condition is not builtin type\n";
+  if (!condType || !condType->isBoolean()) {
+    llvm::outs() << "Error: Condition is not boolean\n";
+    return false;
   }
-
-  if (!condType->isBoolean()) {
-    llvm::outs() << "Condition is not boolean";
-  }
+  return true;
 }
 
 void SemaAnalyzer::VisitForStmt(const ForStmt &stmt) {
-  IsIntegerBuiltin(stmt.Cond->getType().desugar());
+  Success &= IsBooleanBuiltin(stmt.Cond->getType().desugar());
 }
 
 void SemaAnalyzer::VisitIfStmt(const IfStmt &stmt) {
-  IsIntegerBuiltin(stmt.Cond->getType().desugar());
+  Success &= IsBooleanBuiltin(stmt.Cond->getType().desugar());
   for (auto &elsif : stmt.Elsifs) {
-    IsIntegerBuiltin(elsif.Cond->getType().desugar());
+    Success &= IsBooleanBuiltin(elsif.Cond->getType().desugar());
   }
 }
 
 void SemaAnalyzer::VisitReturnStmt(const ReturnStmt &retStmt) {
-  if (!retStmt.ReturnValue) {
+  const bool isVoidReturn = !retStmt.ReturnValue;
+  if (isVoidReturn) {
     auto *type =
         llvm::dyn_cast<BuiltinType>(CurrentFunc->FuncType.RetType.get());
     if (type && !type->isVoid()) {
-      llvm::outs() << "Returning non void in void function";
+      llvm::outs()
+          << "Error: Return in non void function must returna a value\n";
+      Success = false;
     }
   } else {
-    if (!retStmt.ReturnValue) {
-      llvm::outs() << "Return in non void function must returna a value";
-      return;
+    auto *type =
+        llvm::dyn_cast<BuiltinType>(CurrentFunc->FuncType.RetType.get());
+    if (type && type->isVoid()) {
+      llvm::outs() << "Error: Returning value in void function\n";
+      Success = false;
     }
 
     if (retStmt.ReturnValue->getType() != *CurrentFunc->FuncType.RetType) {
-      llvm::outs() << "Return does not match returning type of function";
+      llvm::outs()
+          << "Error: Return does not match returning type of function\n";
+      Success = false;
     }
   }
 }
 
 void SemaAnalyzer::VisitVarDeclStmt(const VarDeclStmt &stmt) {
   if (stmt.InitExpr && *stmt.VarDecl->Type != stmt.InitExpr->getType()) {
-    llvm::outs() << "Error VarDeclStmt\n";
-    stmt.VarDecl->dump();
-    stmt.InitExpr->dump();
+    llvm::outs()
+        << "Error: VarDeclStmt type and init expr are from different type\n";
+    Success = false;
   }
 }
 
 void SemaAnalyzer::VisitWhileStmt(const WhileStmt &stmt) {
-  IsIntegerBuiltin(stmt.Cond->getType().desugar());
+  Success &= IsBooleanBuiltin(stmt.Cond->getType().desugar());
 }
 
 void SemaAnalyzer::VisitFuncDecl(const FuncDecl &funcDecl) {

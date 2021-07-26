@@ -101,9 +101,16 @@ CompoundType::CompoundType(const TypeDecl &typeDecl)
 const Type &BuiltinType::desugar() const { return *this; }
 const Type &AliasType::desugar() const { return RealType; }
 const Type &CompoundType::desugar() const { return *this; }
-const Type &PtrType::desugar() const { return *PointeeType; }
-const Type &ArrayType::desugar() const { return *RealType; }
+const Type &PtrType::desugar() const { return *this; }
+const Type &ArrayType::desugar() const { return *this; }
 const Type &FuncType::desugar() const { return *this; }
+
+const Type &BuiltinType::innerType() const { return *this; }
+const Type &AliasType::innerType() const { return *this; }
+const Type &CompoundType::innerType() const { return *this; }
+const Type &PtrType::innerType() const { return *PointeeType; }
+const Type &ArrayType::innerType() const { return *RealType; }
+const Type &FuncType::innerType() const { return *this; }
 
 std::unique_ptr<Type> BuiltinType::clone() const {
   return std::make_unique<BuiltinType>(Kind);

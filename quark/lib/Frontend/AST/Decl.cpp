@@ -89,7 +89,7 @@ static bool AreReciversEqual(const Type *lhs, const Type *rhs) {
   if (!lhs && !rhs) {
     return true;
   }
-  return lhs->desugar() == rhs->desugar();
+  return lhs->desugar().innerType() == rhs->desugar().innerType();
 }
 
 bool FuncDecl::FuncSignature::operator==(const FuncSignature &rhs) const {

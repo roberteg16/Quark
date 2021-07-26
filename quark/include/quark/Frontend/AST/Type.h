@@ -25,6 +25,7 @@ struct Type {
 
   virtual std::unique_ptr<Type> clone() const = 0;
   virtual const Type &desugar() const = 0;
+  virtual const Type &innerType() const = 0;
 
   virtual TypeKind getKind() const { return TKind; }
 
@@ -72,6 +73,7 @@ struct BuiltinType : public NamedType {
 
   std::unique_ptr<Type> clone() const override;
   const Type &desugar() const override;
+  const Type &innerType() const override;
 
   void print(llvm::raw_ostream &) const override;
   void dump() const override;
@@ -94,6 +96,7 @@ struct AliasType : public NamedType {
 
   std::unique_ptr<Type> clone() const override;
   const Type &desugar() const override;
+  const Type &innerType() const override;
 
   void print(llvm::raw_ostream &) const override;
   void dump() const override;
@@ -113,6 +116,7 @@ struct CompoundType : public NamedType {
 
   std::unique_ptr<Type> clone() const override;
   const Type &desugar() const override;
+  const Type &innerType() const override;
 
   void print(llvm::raw_ostream &) const override;
   void dump() const override;
@@ -134,6 +138,7 @@ struct PtrType : Type {
 
   std::unique_ptr<Type> clone() const override;
   const Type &desugar() const override;
+  const Type &innerType() const override;
 
   void print(llvm::raw_ostream &) const override;
   void dump() const override;
@@ -154,6 +159,7 @@ struct ArrayType : Type {
 
   std::unique_ptr<Type> clone() const override;
   const Type &desugar() const override;
+  const Type &innerType() const override;
 
   void print(llvm::raw_ostream &) const override;
   void dump() const override;
@@ -179,6 +185,7 @@ struct FuncType : Type {
 
   std::unique_ptr<Type> clone() const override;
   const Type &desugar() const override;
+  const Type &innerType() const override;
 
   void print(llvm::raw_ostream &) const override;
   void dump() const override;

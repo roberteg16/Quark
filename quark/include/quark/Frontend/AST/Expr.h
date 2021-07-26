@@ -31,8 +31,8 @@ struct Expr {
   virtual void print(llvm::raw_ostream &) const;
   virtual void dump() const;
 
-  bool isLValue() { return ValueKind == ValueTypeKind::LeftValue; }
-  bool isRValue() { return ValueKind == ValueTypeKind::RightValue; }
+  bool isLValue() const { return ValueKind == ValueTypeKind::LeftValue; }
+  bool isRValue() const { return ValueKind == ValueTypeKind::RightValue; }
 
   const Type &getType() const { return *ExprType; }
   virtual ExprKind getKind() const { return Kind; }

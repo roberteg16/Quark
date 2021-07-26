@@ -237,15 +237,15 @@ int main(int argc, const char *argv[]) {
     return 1;
   }
 
-  if (args.hasArg(OPT_emit_ast)) {
-    sm.print(out);
-    return 0;
-  }
-
   SemaAnalyzer sema;
   if (!sema.analyze(sm)) {
     out << "Semantic analysis failed\n";
     return -1;
+  }
+
+  if (args.hasArg(OPT_emit_ast)) {
+    sm.print(out);
+    return 0;
   }
 
   QuarkContext &quarkCtx = QuarkContext::buildContext();
