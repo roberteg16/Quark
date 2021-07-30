@@ -62,9 +62,11 @@ struct VarDeclStmt : public Stmt {
 
 struct ForStmt : public Stmt {
   ForStmt(std::unique_ptr<VarDeclStmt> varDecl, std::unique_ptr<Expr> cond,
-          std::unique_ptr<Expr> inc, std::unique_ptr<Stmt> body)
+          std::unique_ptr<Expr> inc, std::unique_ptr<Stmt> body,
+          bool isParallel)
       : Stmt(StmtKind::ForStmt), VarDecl(std::move(varDecl)),
-        Cond(std::move(cond)), Inc(std::move(inc)), Body(std::move(body)) {}
+        Cond(std::move(cond)), Inc(std::move(inc)), Body(std::move(body)),
+        IsParallel(isParallel) {}
   virtual ~ForStmt();
 
   static bool classof(const Stmt *stmt) {
@@ -75,6 +77,7 @@ struct ForStmt : public Stmt {
   std::unique_ptr<Expr> Cond;
   std::unique_ptr<Expr> Inc;
   std::unique_ptr<Stmt> Body;
+  bool IsParallel = false;
 };
 
 struct IfStmt : public Stmt {

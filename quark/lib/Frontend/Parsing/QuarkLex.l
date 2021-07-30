@@ -19,6 +19,7 @@ STRING \".*\"
 "export"            { tk(EXPORT             ); }
 "import"            { tk(IMPORT             ); }
 "for"               { tk(FOR                ); }
+"par_for"           { tk(PAR_FOR            ); }
 "while"             { tk(WHILE              ); }
 "if"                { tk(IF                 ); }
 "elsif"             { tk(ELSIF              ); }

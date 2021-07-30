@@ -136,7 +136,7 @@ void ASTDumper::VisitExprStmt(const ExprStmt &stmt) {
 }
 
 void ASTDumper::VisitForStmt(const ForStmt &stmt) {
-  RSO << "ForStmt:";
+  RSO << "ForStmt: " << (stmt.IsParallel ? "ParLoop" : "SeqLoop");
   Elements.emplace_back(RSO.str(), Depth);
   RSO.str().clear();
 }

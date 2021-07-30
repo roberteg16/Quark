@@ -78,7 +78,7 @@
 
 %token  END 0
 %token  MODULE EXPORT IMPORT
-%token  FOR WHILE
+%token  FOR WHILE PAR_FOR
 %token  IF ELSIF ELSE
 %token  RET DEFER TYPE FN PRINT
 %token  ALLOC DEALLOC
@@ -258,7 +258,11 @@ List_of_stmt: List_of_stmt Stmt {
 
 Stmt: FOR "(" { ctx.enterScope(); } Local_var_decl ";" Expr ";" Expr ")" Stmt { ctx.exitScope(); } {
         $$ = std::make_unique<ForStmt>(std::move($4), ctx.castToBoolIfNeeded(std::move($6)),
-                                       std::move($8), std::move($10));
+                                       std::move($8), std::move($10), /*isParallel*/ false);
+      }
+    | PAR_FOR "(" { ctx.enterScope(); } Local_var_decl ";" Expr ";" Expr ")" Stmt { ctx.exitScope(); } {
+        $$ = std::make_unique<ForStmt>(std::move($4), ctx.castToBoolIfNeeded(std::move($6)),
+                                       std::move($8), std::move($10), /*isParallel*/ true);
       }
     | IF "(" Expr ")" Stmt List_of_elsif {
         $$ = std::make_unique<IfStmt>(ctx.castToBoolIfNeeded(std::move($3)), std::move($5),

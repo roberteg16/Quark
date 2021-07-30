@@ -27,6 +27,8 @@ struct CodeGen {
     llvm::AllocaInst *RetAlloca;
     llvm::Function *CurrFuncLLVM;
     llvm::DenseMap<const FuncDecl *, llvm::FunctionCallee> DeclToFuncCalleeMap;
+    bool IsInOutlineFunction = {false};
+    llvm::DenseMap<const VarDecl *, llvm::AllocaInst *> OutlinedVarDeclToAlloca;
     llvm::SmallVector<const llvm::Value *, 4> DeferedValues;
 
     void reset();
@@ -45,6 +47,13 @@ private:
 
   void emitFuncDecl(const FuncDecl &);
   void emitTypeDecl(const TypeDecl &);
+  void emitForLoop(const ForStmt &);
+  void emitParallelForLoop(const ForStmt &);
+
+  void
+  emitOutlinedParallelLoopFunc(const ForStmt &parallelFor,
+                               llvm::ArrayRef<const VarDecl *> varsUsed,
+                               llvm::ArrayRef<const VarDecl *> varDeclared);
 
   llvm::Value *getExpr(const Expr &);
 

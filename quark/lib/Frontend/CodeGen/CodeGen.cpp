@@ -3,10 +3,14 @@
 #include <quark/Frontend/CodeGen/QuarkContext.h>
 #include <quark/Frontend/Parsing/SourceModule.h>
 
+#include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/ScopeExit.h>
+#include <llvm/ADT/SetOperations.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/IR/Attributes.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/GlobalVariable.h>
@@ -14,6 +18,11 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Value.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/ErrorHandling.h>
@@ -21,6 +30,7 @@
 
 #include "LLVMTypeTranslation.h"
 #include "Mangler.h"
+#include "RecoverVarsUsed.h"
 
 using namespace quark;
 
@@ -55,6 +65,210 @@ void CodeGen::emitTypeDecl(const TypeDecl &decl) {
     SM.addLLVMTypeForCompoundType(*newStruct, compound->Name);
   }
   // TODO: implement AliasTypes
+}
+
+void CodeGen::emitForLoop(const ForStmt &forStmt) {
+  auto *initBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.init");
+  auto *condBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.cond");
+  auto *bodyBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.body");
+  auto *incBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.inc");
+  auto *endBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.end");
+
+  IRBuilder.CreateBr(initBB);
+  emitBlock(*initBB);
+  emitStmt(*forStmt.VarDecl);
+
+  IRBuilder.CreateBr(condBB);
+  emitConditionalBlock(*condBB, *bodyBB, *endBB, *forStmt.Cond);
+  emitPossiblyRetStmtBlock(*bodyBB, *CGCtx.RetsBB, *incBB, *forStmt.Body);
+
+  emitBlock(*incBB);
+  getExpr(*forStmt.Inc);
+  IRBuilder.CreateBr(condBB);
+
+  emitBlock(*endBB);
+}
+
+static llvm::StructType *CreateOMPIdentType(llvm::LLVMContext &ctxt) {
+  llvm::Type *types[] = {
+      llvm::Type::getInt32Ty(ctxt),          llvm::Type::getInt32Ty(ctxt),
+      llvm::Type::getInt32Ty(ctxt),          llvm::Type::getInt32Ty(ctxt),
+      llvm::PointerType::getInt8PtrTy(ctxt),
+  };
+  static llvm::StructType *ompStruct =
+      llvm::StructType::create(llvm::makeArrayRef(types), "struct.ident_t");
+
+  return ompStruct;
+}
+
+static llvm::FunctionType *GetOMPForkCallType(llvm::LLVMContext &ctxt) {
+  llvm::Type *typesOfCallBack[] = {llvm::Type::getInt32PtrTy(ctxt),
+                                   llvm::Type::getInt32PtrTy(ctxt)};
+  llvm::Type *callbackFuncTypePtr =
+      llvm::FunctionType::get(llvm::Type::getVoidTy(ctxt), typesOfCallBack,
+                              /*isVarArg*/ true)
+          ->getPointerTo();
+
+  llvm::Type *types[] = {CreateOMPIdentType(ctxt)->getPointerTo(),
+                         llvm::Type::getInt32Ty(ctxt), callbackFuncTypePtr};
+
+  return llvm::FunctionType::get(llvm::Type::getVoidTy(ctxt), types,
+                                 /*isVarArg*/ true);
+}
+
+static llvm::GlobalVariable *
+CreateOMPIndentGlobalVariable(llvm::LLVMContext &ctx,
+                              llvm::IRBuilder<> &irBuilder, llvm::Module &mod) {
+  llvm::Constant *cnts[] = {
+      llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 0),
+      llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 2),
+      llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 0),
+      llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 0),
+      irBuilder.CreateGlobalStringPtr("path/to/this/stmt"),
+  };
+
+  llvm::StructType *identType = CreateOMPIdentType(ctx);
+
+  llvm::Constant *constantStruct =
+      llvm::ConstantStruct::get(identType, llvm::makeArrayRef(cnts));
+
+  return new llvm::GlobalVariable(
+      mod, identType, /*isConst*/ true,
+      llvm::GlobalValue::LinkageTypes::PrivateLinkage, constantStruct);
+}
+
+static std::string GenerateUniqueOutlinedParLoopFunc() {
+  static unsigned counter = 0;
+  std::string str;
+  llvm::raw_string_ostream rso(str);
+  rso << "outline.par.for." << counter++;
+  return rso.str();
+}
+
+static llvm::FunctionType *
+CreateFunctionTypeForBitCast(llvm::LLVMContext &ctx) {
+  std::vector<llvm::Type *> paramTypes = {
+      llvm::IntegerType::getInt32PtrTy(ctx),
+      llvm::IntegerType::getInt32PtrTy(ctx)};
+
+  return llvm::FunctionType::get(llvm::Type::getVoidTy(ctx),
+                                 llvm::makeArrayRef(paramTypes),
+                                 /*isVarArg*/ true);
+}
+
+static llvm::FunctionType *
+CreateFunctionTypeForOutlinedParLoop(llvm::LLVMContext &ctx,
+                                     llvm::ArrayRef<const VarDecl *> varsUsed,
+                                     SourceModule &sm) {
+  std::vector<llvm::Type *> paramTypes = {
+      llvm::IntegerType::getInt32PtrTy(ctx),
+      llvm::IntegerType::getInt32PtrTy(ctx)};
+
+  for (const VarDecl *varDecl : varsUsed) {
+    paramTypes.push_back(
+        TranslateType(ctx, *varDecl->Type, sm)->getPointerTo());
+  }
+
+  return llvm::FunctionType::get(llvm::Type::getVoidTy(ctx),
+                                 llvm::makeArrayRef(paramTypes),
+                                 /*isVarArg*/ false);
+}
+
+void CodeGen::emitOutlinedParallelLoopFunc(
+    const ForStmt &parallelFor, llvm::ArrayRef<const VarDecl *> varsUsed,
+    llvm::ArrayRef<const VarDecl *> varsDeclared) {
+  // Save in codegen context for later
+  emitBlock(*llvm::BasicBlock::Create(Ctx.LLVMCtx, "entry"));
+
+  // Emit all allocas needed for params
+  for (const VarDecl *varDecl : varsUsed) {
+    llvm::AllocaInst *alloca = IRBuilder.CreateAlloca(
+        TranslateType(Ctx.LLVMCtx, *varDecl->Type, SM)->getPointerTo(), nullptr,
+        varDecl->Name + ".var");
+    CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
+  }
+
+  // Emit all allocas needed for local decls
+  for (const VarDecl *varDecl : varsDeclared) {
+    llvm::AllocaInst *alloca =
+        IRBuilder.CreateAlloca(TranslateType(Ctx.LLVMCtx, *varDecl->Type, SM),
+                               nullptr, varDecl->Name + ".var");
+    llvm::MDNode *node =
+        llvm::MDNode::get(Ctx.LLVMCtx, llvm::MDString::get(Ctx.LLVMCtx, "yes"));
+    alloca->setMetadata("par-local-del", node);
+    CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
+  }
+
+  // Create store for each param
+  for (unsigned i = 0; i < varsUsed.size(); ++i) {
+    IRBuilder.CreateStore(CGCtx.CurrFuncLLVM->getArg(i + 2),
+                          CGCtx.OutlinedVarDeclToAlloca[varsUsed[i]]);
+  }
+
+  llvm::BasicBlock *prevRetBB = CGCtx.RetsBB;
+  auto recoverRetBB = llvm::make_scope_exit([=] { CGCtx.RetsBB = prevRetBB; });
+
+  // Create return block
+  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
+  emitForLoop(parallelFor);
+
+  IRBuilder.CreateBr(CGCtx.RetsBB);
+
+  emitBlock(*CGCtx.RetsBB);
+  IRBuilder.CreateRetVoid();
+}
+
+void CodeGen::emitParallelForLoop(const ForStmt &forStmt) {
+  // Recover all used vars inside parallel for loop
+  RecoverVarsUsed varUsedVisitor;
+  varUsedVisitor.recover(forStmt);
+
+  auto varDecls = varUsedVisitor.takeVarDecls();
+  auto varsUsed = varUsedVisitor.takeVarUsed();
+  auto varUsedNotDeclared =
+      llvm::set_difference(varsUsed, varDecls).takeVector();
+
+  std::string outlinedFunctionName = GenerateUniqueOutlinedParLoopFunc();
+  // Create outlined function
+  llvm::FunctionCallee outlinedFunc = Mod->getOrInsertFunction(
+      outlinedFunctionName, CreateFunctionTypeForOutlinedParLoop(
+                                Ctx.LLVMCtx, varUsedNotDeclared, SM));
+
+  llvm::SmallVector<llvm::Value *, 5> params;
+  // Add Ident_t struct required by OMP fork
+  params.push_back(CreateOMPIndentGlobalVariable(Ctx.LLVMCtx, IRBuilder, *Mod));
+  // Add num of extra params (vars used inside the outline function)
+  params.push_back(llvm::ConstantInt::get(
+      llvm::IntegerType::getInt32Ty(Ctx.LLVMCtx), varUsedNotDeclared.size()));
+  // Add real function to parallelize, the outlined one
+  params.push_back(IRBuilder.CreateBitCast(
+      outlinedFunc.getCallee(),
+      CreateFunctionTypeForBitCast(Ctx.LLVMCtx)->getPointerTo()));
+  // Add extra params, vars used inside for
+  for (auto *varUsed : varUsedNotDeclared) {
+    params.push_back(&SM.getAllocaForVarDecl(*varUsed));
+  }
+
+  // Get function call to omp library, fork func
+  llvm::FunctionCallee funcCallee = Mod->getOrInsertFunction(
+      "__kmpc_fork_call", GetOMPForkCallType(Ctx.LLVMCtx));
+
+  // Finally emit the call
+  IRBuilder.CreateCall(funcCallee, params);
+
+  auto *currentFunc = CGCtx.CurrFuncLLVM;
+  auto recoverFucn =
+      llvm::make_scope_exit([=] { CGCtx.CurrFuncLLVM = currentFunc; });
+
+  // Implement outline function
+  CGCtx.CurrFuncLLVM = Mod->getFunction(outlinedFunctionName);
+
+  // Emit allocas, emit stores, emit for stmt
+  CGCtx.IsInOutlineFunction = true;
+  emitOutlinedParallelLoopFunc(forStmt, varUsedNotDeclared,
+                               varDecls.takeVector());
+  CGCtx.IsInOutlineFunction = false;
+  CGCtx.OutlinedVarDeclToAlloca.clear();
 }
 
 void CodeGen::emitBlock(llvm::BasicBlock &bb) {
@@ -217,7 +431,18 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
         llvm::Type::getInt8PtrTy(Ctx.LLVMCtx));
   }
   case ExprKind::VarRefExpr: {
-    return &SM.getAllocaForVarDecl(llvm::cast<VarRefExpr>(&expr)->RefVar);
+    const VarRefExpr &varRefExpr = *llvm::cast<VarRefExpr>(&expr);
+    if (CGCtx.IsInOutlineFunction) {
+      // If we are in a outlined context extract the alloca from the temporal
+      // map
+      auto *alloca = CGCtx.OutlinedVarDeclToAlloca[&varRefExpr.RefVar];
+      if (alloca->hasMetadata()) {
+        return alloca;
+      }
+      return IRBuilder.CreateLoad(alloca);
+    }
+    // Otherwise from the SourceModule cache
+    return &SM.getAllocaForVarDecl(varRefExpr.RefVar);
   }
   case ExprKind::BooleanExpr: {
     return llvm::ConstantInt::get(llvm::Type::getInt1Ty(Ctx.LLVMCtx),
@@ -230,10 +455,14 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
     for (auto &param : funcCallExpr.Params) {
       params.push_back(getExpr(*param));
     }
+
+    llvm::FunctionCallee &callee =
+        CGCtx.DeclToFuncCalleeMap[&funcCallExpr.FunctionDecl];
     return IRBuilder.CreateCall(
-        CGCtx.CurrFuncLLVM->getFunctionType(),
-        CGCtx.DeclToFuncCalleeMap[&funcCallExpr.FunctionDecl].getCallee(),
-        params, funcCallExpr.FunctionDecl.Name);
+        callee, params,
+        (!callee.getFunctionType()->getReturnType()->isVoidTy()
+             ? funcCallExpr.FunctionDecl.Name.data()
+             : ""));
   }
   case ExprKind::MemberCallExpr: {
     const auto &memberCallExpr = *llvm::cast<MemberCallExpr>(&expr);
@@ -379,25 +608,17 @@ void CodeGen::emitStmt(const Stmt &stmt) {
   }
   case StmtKind::ForStmt: {
     const auto &forStmt = *llvm::cast<ForStmt>(&stmt);
-    auto *initBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.init");
-    auto *condBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.cond");
-    auto *bodyBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.body");
-    auto *incBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.inc");
-    auto *endBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "for.end");
+    if (forStmt.IsParallel) {
+      llvm::BasicBlock *prev = IRBuilder.GetInsertBlock();
+      auto restorePrevBB = llvm::make_scope_exit([=] {
+        IRBuilder.SetInsertPoint(prev);
+        CGCtx.OutlinedVarDeclToAlloca.clear();
+      });
 
-    IRBuilder.CreateBr(initBB);
-    emitBlock(*initBB);
-    emitStmt(*forStmt.VarDecl);
-
-    IRBuilder.CreateBr(condBB);
-    emitConditionalBlock(*condBB, *bodyBB, *endBB, *forStmt.Cond);
-    emitPossiblyRetStmtBlock(*bodyBB, *CGCtx.RetsBB, *incBB, *forStmt.Body);
-
-    emitBlock(*incBB);
-    getExpr(*forStmt.Inc);
-    IRBuilder.CreateBr(condBB);
-
-    emitBlock(*endBB);
+      emitParallelForLoop(forStmt);
+    } else {
+      emitForLoop(forStmt);
+    }
     break;
   }
   case StmtKind::IfStmt: {
@@ -467,9 +688,21 @@ void CodeGen::emitStmt(const Stmt &stmt) {
   case StmtKind::VarDeclStmt: {
     const auto &varDeclStmt = *llvm::cast<VarDeclStmt>(&stmt);
     if (varDeclStmt.InitExpr) {
-      llvm::Value *alloca = &SM.getAllocaForVarDecl(*varDeclStmt.VarDecl);
+      llvm::Value *val = &SM.getAllocaForVarDecl(*varDeclStmt.VarDecl);
+      if (CGCtx.IsInOutlineFunction) {
+        // If we are in a outlined context extract the alloca from the temporal
+        // map
+        auto *alloca = CGCtx.OutlinedVarDeclToAlloca[varDeclStmt.VarDecl.get()];
+        if (alloca->hasMetadata()) {
+          val = alloca;
+        } else {
+          val = IRBuilder.CreateLoad(alloca);
+        }
+      }
+
+      // Otherwise from the SourceModule cache
       llvm::Value *varInitExpr = getExpr(*varDeclStmt.InitExpr);
-      IRBuilder.CreateStore(varInitExpr, alloca);
+      IRBuilder.CreateStore(varInitExpr, val);
     }
     return;
   }
@@ -508,43 +741,44 @@ void CodeGen::emitStmt(const Stmt &stmt) {
   }
 }
 
-void CodeGen::emitFuncDecl(const FuncDecl &decl) {
-  llvm::DenseMap<const Decl *, unsigned> idx;
-
-  // Calculate params types
+static llvm::FunctionType *GetFunctionType(llvm::LLVMContext &ctx,
+                                           SourceModule &sm,
+                                           const FuncDecl &decl) {
   llvm::SmallVector<llvm::Type *, 6> paramTypes;
   paramTypes.reserve(!!decl.Reciver + decl.Params.size());
 
-  unsigned idxOfParam = 0;
   // First is going to be the reciever as a pointer in case of existing one
   if (decl.Reciver) {
-    paramTypes.push_back(TranslateType(Ctx.LLVMCtx, *decl.Reciver->Type, SM));
-    idx[&decl] = idxOfParam++;
+    paramTypes.push_back(TranslateType(ctx, *decl.Reciver->Type, sm));
   }
 
   // Emit normal params
   for (unsigned i = 0; i < decl.Params.size(); ++i) {
-    paramTypes.push_back(TranslateType(Ctx.LLVMCtx, *decl.Params[i]->Type, SM));
-    idx[decl.Params[i].get()] = idxOfParam++;
+    paramTypes.push_back(TranslateType(ctx, *decl.Params[i]->Type, sm));
   }
 
-  llvm::Type *retType = TranslateType(Ctx.LLVMCtx, *decl.FuncType.RetType, SM);
-  llvm::FunctionType *funcType =
-      llvm::FunctionType::get(retType, paramTypes, /*isVarArg*/ false);
+  llvm::Type *retType = TranslateType(ctx, *decl.FuncType.RetType, sm);
 
-  auto isMain = decl.Name == "main";
+  return llvm::FunctionType::get(retType, paramTypes, /*isVarArg*/ false);
+}
 
-  assert(!Mod->getFunction(decl.Name));
-  std::string mangledName =
-      isMain ? decl.Name.data() : mangleFunction(decl.Name, decl.FuncType);
+void CodeGen::emitFuncDecl(const FuncDecl &decl) {
+  // Type of function
+  llvm::FunctionType *funcType = GetFunctionType(Ctx.LLVMCtx, SM, decl);
+
+  // Get mangled function's name
+  std::string mangledName = decl.Name.data();
+  if (decl.Name != "main") {
+    mangledName = mangleFunction(decl.Name, decl.FuncType);
+  }
+
+  assert(!Mod->getFunction(mangledName));
   CGCtx.DeclToFuncCalleeMap[&decl] =
       Mod->getOrInsertFunction(mangledName, funcType);
-  llvm::Function *func = Mod->getFunction(mangledName);
-  assert(func);
+  CGCtx.CurrFuncLLVM = Mod->getFunction(mangledName);
+  assert(CGCtx.CurrFuncLLVM);
 
   // Save in codegen context for later
-  CGCtx.CurrFuncLLVM = func;
-
   emitBlock(*llvm::BasicBlock::Create(Ctx.LLVMCtx, "entry"));
 
   // Emit all allocas needed for vars, reciever and params
@@ -555,29 +789,33 @@ void CodeGen::emitFuncDecl(const FuncDecl &decl) {
     SM.addAllocaForVarDecl(*varDecl, *alloca);
   }
 
-  // Create alloca and final block for multiple returns
-  auto returns = SM.getReturnStmtsForFunc(decl);
-
-  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
-
+  // Create alloca for return
   if (!CGCtx.CurrFuncLLVM->getReturnType()->isVoidTy()) {
     CGCtx.RetAlloca = IRBuilder.CreateAlloca(
         TranslateType(Ctx.LLVMCtx, *decl.FuncType.RetType, SM), nullptr,
         "ret.var");
   }
 
-  for (const VarDecl *varDecl : SM.getVarDeclStmtsForFunc(decl)) {
-    if (varDecl->getVarDeclKind() == VarDeclKind::RecieverVar ||
-        varDecl->getVarDeclKind() == VarDeclKind::ParamVar) {
-      IRBuilder.CreateStore(func->getArg(idx[varDecl]),
-                            &SM.getAllocaForVarDecl(*varDecl));
-    }
+  // Create store for reciver if it exists
+  if (decl.Reciver) {
+    IRBuilder.CreateStore(CGCtx.CurrFuncLLVM->getArg(0),
+                          &SM.getAllocaForVarDecl(*decl.Reciver));
   }
 
+  // Create store for each param
+  for (unsigned i = 0; i < decl.Params.size(); ++i) {
+    IRBuilder.CreateStore(CGCtx.CurrFuncLLVM->getArg(i + !!decl.Reciver),
+                          &SM.getAllocaForVarDecl(*decl.Params[i]));
+  }
+
+  // Create return block
+  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
   for (const std::unique_ptr<Stmt> &stmt : decl.Body) {
     emitStmt(*stmt);
   }
 
+  // Create unreachable if function returns but not all paths have a return,
+  // otherwise just jump to the return block
   if (!CGCtx.CurrFuncLLVM->getReturnType()->isVoidTy() &&
       !DoesReturnInAllPaths(decl)) {
     IRBuilder.CreateIntrinsic(llvm::Intrinsic::IndependentIntrinsics::trap, {},
@@ -591,7 +829,7 @@ void CodeGen::emitFuncDecl(const FuncDecl &decl) {
 
   if (CGCtx.CurrFuncLLVM->getReturnType()->isVoidTy()) {
     IRBuilder.CreateRetVoid();
-  } else if (returns.size() != 0) {
+  } else if (SM.getReturnStmtsForFunc(decl).size() != 0) {
     IRBuilder.CreateRet(IRBuilder.CreateLoad(CGCtx.RetAlloca));
   }
 }
@@ -602,6 +840,8 @@ void CodeGen::CodeGenContext::reset() {
   RetAlloca = nullptr;
   CurrFuncLLVM = nullptr;
   DeferedValues.clear();
+  IsInOutlineFunction = false;
+  OutlinedVarDeclToAlloca.clear();
 }
 
 void CodeGen::emitDecl(const Decl &decl) {
