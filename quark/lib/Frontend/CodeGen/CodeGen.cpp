@@ -194,65 +194,10 @@ static std::pair<Expr &, BinaryOperatorKind> GetCmpExprAndOp(VarDecl &itVarDecl,
   return {*binExpr->Rhs, binExpr->Op};
 }
 
-void CodeGen::emitOutlinedParallelLoopFunc(
-    const ForStmt &parallelFor, llvm::ArrayRef<const VarDecl *> varsUsed,
-    llvm::ArrayRef<const VarDecl *> varsDeclared) {
-  // Save in codegen context for later
-  emitBlock(*llvm::BasicBlock::Create(Ctx.LLVMCtx, "entry"));
-
-  llvm::Argument *globalThreadID = CGCtx.CurrFuncLLVM->getArg(0);
-  llvm::Argument *boundThreadID = CGCtx.CurrFuncLLVM->getArg(1);
-
-  llvm::Type *itVarType =
-      TranslateType(Ctx.LLVMCtx, *parallelFor.VarDecl->VarDecl->Type, SM);
-
-  // Auxiliar variables needed for the parallel for
-  ParallelForAuxVars pfav(IRBuilder, *itVarType);
-
-  llvm::BasicBlock *prevRetBB = CGCtx.RetsBB;
-  auto recoverRetBB = llvm::make_scope_exit([=] { CGCtx.RetsBB = prevRetBB; });
-
-  // Create return block
-  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
-
-  // Emit all allocas needed for params
-  for (const VarDecl *varDecl : varsUsed) {
-    llvm::AllocaInst *alloca = IRBuilder.CreateAlloca(
-        TranslateType(Ctx.LLVMCtx, *varDecl->Type, SM)->getPointerTo(), nullptr,
-        varDecl->Name + ".var");
-    CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
-  }
-
-  // Emit all allocas needed for local decls
-  for (const VarDecl *varDecl : varsDeclared) {
-    llvm::AllocaInst *alloca =
-        IRBuilder.CreateAlloca(TranslateType(Ctx.LLVMCtx, *varDecl->Type, SM),
-                               nullptr, varDecl->Name + ".var");
-    llvm::MDNode *node =
-        llvm::MDNode::get(Ctx.LLVMCtx, llvm::MDString::get(Ctx.LLVMCtx, "yes"));
-    alloca->setMetadata("par-local-del", node);
-    CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
-  }
-
-  IRBuilder.CreateStore(globalThreadID, pfav.GTID);
-  IRBuilder.CreateStore(boundThreadID, pfav.BTID);
-  // Create store for each param
-  for (unsigned i = 0; i < varsUsed.size(); ++i) {
-    IRBuilder.CreateStore(CGCtx.CurrFuncLLVM->getArg(i + 2),
-                          CGCtx.OutlinedVarDeclToAlloca[varsUsed[i]]);
-  }
-
-  // Auxiliar data needed for the parallel for
-  ParallelForAuxData pfad(*parallelFor.VarDecl->VarDecl);
-
-  assert(parallelFor.VarDecl->InitExpr && "VarDecl must have init value");
-  pfad.InitValue = getExpr(*parallelFor.VarDecl->InitExpr);
-  pfad.IncValue =
-      getExpr(GetIncrement(*parallelFor.VarDecl->VarDecl, *parallelFor.Inc));
-  // Auxiliar get blocks needed for the parallel for logic
-  ParallelForBBs pfb(Ctx.LLVMCtx);
-
-  IRBuilder.CreateBr(pfb.OMPPrecond);
+llvm::Value *CodeGen::emitOMPPrecond(const ForStmt &parallelFor,
+                                     ParallelForBBs &pfb,
+                                     ParallelForAuxVars &pfav,
+                                     ParallelForAuxData &pfad) {
   emitBlock(*pfb.OMPPrecond);
 
   auto [cmpExpr, op] =
@@ -274,10 +219,14 @@ void CodeGen::emitOutlinedParallelLoopFunc(
       CGCtx.OutlinedVarDeclToAlloca[parallelFor.VarDecl->VarDecl.get()]);
 
   auto *captureExpr = IRBuilder.CreateLoad(pfav.CaptureExpr);
-  auto *cmpInst = IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_SLT, itVar,
-                                      captureExpr);
-  IRBuilder.CreateCondBr(cmpInst, pfb.OMPPrecondThen, CGCtx.RetsBB);
+  return IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_SLT, itVar,
+                             captureExpr);
+}
 
+llvm::Value *CodeGen::emitOMPPrecondThen(const ForStmt &parallelFor,
+                                         ParallelForBBs &pfb,
+                                         ParallelForAuxVars &pfav,
+                                         ParallelForAuxData &pfad) {
   emitBlock(*pfb.OMPPrecondThen);
 
   IRBuilder.CreateStore(
@@ -311,36 +260,46 @@ void CodeGen::emitOutlinedParallelLoopFunc(
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1)};
 
   IRBuilder.CreateCall(func, paramsStaticInitFunc);
+  return IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_SGT,
+                             IRBuilder.CreateLoad(pfav.UbOMP),
+                             IRBuilder.CreateLoad(pfav.CaptureExpr1));
+}
 
-  cmpInst = IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_SGT,
-                                IRBuilder.CreateLoad(pfav.UbOMP),
-                                IRBuilder.CreateLoad(pfav.CaptureExpr1));
-
-  IRBuilder.CreateCondBr(cmpInst, pfb.OMPCondTrue, pfb.OMPCondFalse);
-
+llvm::Value *CodeGen::emitOMPPrecondTrue(const ForStmt &parallelFor,
+                                         ParallelForBBs &pfb,
+                                         ParallelForAuxVars &pfav,
+                                         ParallelForAuxData &pfad) {
   emitBlock(*pfb.OMPCondTrue);
-  auto *captureExpr1 = IRBuilder.CreateLoad(pfav.CaptureExpr1);
-  IRBuilder.CreateBr(pfb.OMPCondEnd);
-
+  return IRBuilder.CreateLoad(pfav.CaptureExpr1);
+}
+llvm::Value *CodeGen::emitOMPPrecondFalse(const ForStmt &parallelFor,
+                                          ParallelForBBs &pfb,
+                                          ParallelForAuxVars &pfav,
+                                          ParallelForAuxData &pfad) {
   emitBlock(*pfb.OMPCondFalse);
-  auto *ompUb = IRBuilder.CreateLoad(pfav.UbOMP);
-  IRBuilder.CreateBr(pfb.OMPCondEnd);
+  return IRBuilder.CreateLoad(pfav.UbOMP);
+}
 
+void CodeGen::emitOMPPrecondEnd(const ForStmt &parallelFor, ParallelForBBs &pfb,
+                                ParallelForAuxVars &pfav,
+                                ParallelForAuxData &pfad,
+                                llvm::Value &captureExpr1,
+                                llvm::Value &upperBound) {
   emitBlock(*pfb.OMPCondEnd);
-
-  auto *phi = IRBuilder.CreatePHI(captureExpr1->getType(), 2);
-  phi->addIncoming(captureExpr1, pfb.OMPCondTrue);
-  phi->addIncoming(ompUb, pfb.OMPCondFalse);
+  auto *phi = IRBuilder.CreatePHI(captureExpr1.getType(), 2);
+  phi->addIncoming(&captureExpr1, pfb.OMPCondTrue);
+  phi->addIncoming(&upperBound, pfb.OMPCondFalse);
   IRBuilder.CreateStore(phi, pfav.UbOMP);
   IRBuilder.CreateStore(IRBuilder.CreateLoad(pfav.LbOMP),
                         pfav.IterationVariable);
+}
 
-  emitInnerParallelInParallelLoop(pfav, pfad, *parallelFor.Body);
-
-  IRBuilder.CreateBr(pfb.OMPLoopExit);
+void CodeGen::emitOMPLoopExit(const ForStmt &parallelFor, ParallelForBBs &pfb,
+                              ParallelForAuxVars &pfav,
+                              ParallelForAuxData &pfad) {
   emitBlock(*pfb.OMPLoopExit);
 
-  gtid = IRBuilder.CreateLoad(IRBuilder.CreateLoad(pfav.GTID));
+  auto *gtid = IRBuilder.CreateLoad(IRBuilder.CreateLoad(pfav.GTID));
   // Get function call to omp library, fork func
   llvm::FunctionCallee funcStaticFIni =
       GetOMPFunction(OMPFunction::for_static_fini, *Mod);
@@ -350,17 +309,104 @@ void CodeGen::emitOutlinedParallelLoopFunc(
                                     IdentType::KMP_IDENT_WORK_LOOP),
       gtid};
   IRBuilder.CreateCall(funcStaticFIni, paramsFIniFunc);
+}
 
+void CodeGen::emitOutlinedParallelLoopFunc(
+    const ForStmt &parallelFor, llvm::ArrayRef<const VarDecl *> varsUsed,
+    llvm::ArrayRef<const VarDecl *> varsDeclared) {
+  emitBlock(*llvm::BasicBlock::Create(Ctx.LLVMCtx, "entry"));
+
+  llvm::Type *itVarType =
+      TranslateType(Ctx.LLVMCtx, *parallelFor.VarDecl->VarDecl->Type, SM);
+
+  // Auxiliar variables needed for the parallel for region
+  ParallelForAuxVars pfav(IRBuilder, *itVarType);
+
+  // Save old ret block to restore after the outlined loop function
+  llvm::BasicBlock *prevRetBB = CGCtx.RetsBB;
+  auto recoverRetBB = llvm::make_scope_exit([=] { CGCtx.RetsBB = prevRetBB; });
+
+  // Create return block for outlined loop function
+  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
+
+  // Emit all allocas needed for variables used inside the paralell loop
+  for (const VarDecl *varDecl : varsUsed) {
+    llvm::AllocaInst *alloca = IRBuilder.CreateAlloca(
+        TranslateType(Ctx.LLVMCtx, *varDecl->Type, SM)->getPointerTo(), nullptr,
+        varDecl->Name + ".var");
+    CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
+  }
+
+  // Also emit allocas allocas for each local declaration inside the loop region
+  for (const VarDecl *varDecl : varsDeclared) {
+    llvm::AllocaInst *alloca =
+        IRBuilder.CreateAlloca(TranslateType(Ctx.LLVMCtx, *varDecl->Type, SM),
+                               nullptr, varDecl->Name + ".var");
+    // Addding metadata so on the emit of the VarRefExpr we can distinguish
+    // whether we have to load a local declaration or a variable used in the
+    // loop region that is getting passed by address to the outlined function
+    llvm::MDNode *node =
+        llvm::MDNode::get(Ctx.LLVMCtx, llvm::MDString::get(Ctx.LLVMCtx, "yes"));
+    alloca->setMetadata("par-local-del", node);
+    CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
+  }
+
+  // Create store for params of omp fork call
+  llvm::Argument *globalThreadID = CGCtx.CurrFuncLLVM->getArg(0);
+  llvm::Argument *boundThreadID = CGCtx.CurrFuncLLVM->getArg(1);
+  IRBuilder.CreateStore(globalThreadID, pfav.GTID);
+  IRBuilder.CreateStore(boundThreadID, pfav.BTID);
+
+  // Create store for each param
+  for (unsigned i = 0; i < varsUsed.size(); ++i) {
+    IRBuilder.CreateStore(CGCtx.CurrFuncLLVM->getArg(i + 2),
+                          CGCtx.OutlinedVarDeclToAlloca[varsUsed[i]]);
+  }
+
+  // Auxiliar data needed for the codegen of parallel for
+  ParallelForAuxData pfad(*parallelFor.VarDecl->VarDecl);
+
+  // TODO: emmit error instead of hard asserting it
+  assert(parallelFor.VarDecl->InitExpr && "VarDecl must have init value");
+  pfad.InitValue = getExpr(*parallelFor.VarDecl->InitExpr);
+  pfad.IncValue =
+      getExpr(GetIncrement(*parallelFor.VarDecl->VarDecl, *parallelFor.Inc));
+
+  // Auxiliar get blocks needed for the parallel for logic
+  ParallelForBBs pfb(Ctx.LLVMCtx);
+
+  IRBuilder.CreateBr(pfb.OMPPrecond);
+
+  llvm::Value *precond = emitOMPPrecond(parallelFor, pfb, pfav, pfad);
+  IRBuilder.CreateCondBr(precond, pfb.OMPPrecondThen, CGCtx.RetsBB);
+
+  llvm::Value *cond = emitOMPPrecondThen(parallelFor, pfb, pfav, pfad);
+  IRBuilder.CreateCondBr(cond, pfb.OMPCondTrue, pfb.OMPCondFalse);
+
+  auto *captureExpr1 = emitOMPPrecondTrue(parallelFor, pfb, pfav, pfad);
+  IRBuilder.CreateBr(pfb.OMPCondEnd);
+
+  auto *upperBound = emitOMPPrecondFalse(parallelFor, pfb, pfav, pfad);
+  IRBuilder.CreateBr(pfb.OMPCondEnd);
+
+  emitOMPPrecondEnd(parallelFor, pfb, pfav, pfad, *captureExpr1, *upperBound);
+
+  emitInnerParallelInParallelLoop(pfav, pfad, *parallelFor.Body);
+  IRBuilder.CreateBr(pfb.OMPLoopExit);
+
+  emitOMPLoopExit(parallelFor, pfb, pfav, pfad);
   IRBuilder.CreateBr(CGCtx.RetsBB);
 
   emitBlock(*CGCtx.RetsBB);
+
+  // Outlined functions always returns void
   IRBuilder.CreateRetVoid();
 }
 
 llvm::Value *CodeGen::emitInnerParallelCond(ParallelForAuxVars &pfav,
                                             ParallelForAuxData &pfad) {
-  auto itVar = IRBuilder.CreateLoad(pfav.IterationVariable);
-  auto upperBoundPlusOne = IRBuilder.CreateAdd(
+  auto *itVar = IRBuilder.CreateLoad(pfav.IterationVariable);
+  auto *upperBoundPlusOne = IRBuilder.CreateAdd(
       IRBuilder.CreateLoad(pfav.UbOMP),
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1));
   return IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_ULT, itVar,
@@ -369,20 +415,17 @@ llvm::Value *CodeGen::emitInnerParallelCond(ParallelForAuxVars &pfav,
 
 void CodeGen::emitInnerParallelBody(ParallelForAuxVars &pfav,
                                     ParallelForAuxData &pfad, Stmt &body) {
-  // Update real iteration of loop
+  // Update real iteration var of loop (artificial copy of induction variable)
   auto *mul = IRBuilder.CreateMul(IRBuilder.CreateLoad(pfav.IterationVariable),
                                   pfad.IncValue);
   IRBuilder.CreateStore(IRBuilder.CreateAdd(mul, pfad.InitValue),
                         pfav.ArtificialVarDeclIterator);
   emitStmt(body);
-  /*%15 = load i32, i32* %.omp.iv, align 4, !dbg !44
-  %mul = mul i32 %15, 30, !dbg !42
-  %add6 = add i32 1, %mul, !dbg !42
-  store i32 %add6, i32* %j3, align 4, !dbg !42*/
 }
 
 void CodeGen::emitInnerParallelInc(ParallelForAuxVars &pfav,
                                    ParallelForAuxData &pfad) {
+  // Increment aux iteration variable
   IRBuilder.CreateStore(
       IRBuilder.CreateAdd(
           IRBuilder.CreateLoad(pfav.IterationVariable),
@@ -465,6 +508,8 @@ void CodeGen::emitParallelForLoop(const ForStmt &forStmt) {
   // Finally emit the call
   IRBuilder.CreateCall(func, params);
 
+  // Save for later the current fuction we are as we are going to enter
+  // in the outlined function
   auto *currentFunc = CGCtx.CurrFuncLLVM;
   auto recoverFucn =
       llvm::make_scope_exit([=] { CGCtx.CurrFuncLLVM = currentFunc; });
@@ -472,7 +517,7 @@ void CodeGen::emitParallelForLoop(const ForStmt &forStmt) {
   // Implement outline function
   CGCtx.CurrFuncLLVM = Mod->getFunction(outlinedFunctionName);
 
-  // Emit allocas, emit stores, emit for stmt
+  // Activate flags of outlined function emiting
   CGCtx.IsInOutlineFunction = true;
   emitOutlinedParallelLoopFunc(forStmt, varUsedNotDeclared,
                                varDecls.takeVector());

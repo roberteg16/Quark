@@ -1,7 +1,6 @@
 #ifndef __QUARK_FRONTEND_CODEGEN_CODEGEN_H__
 #define __QUARK_FRONTEND_CODEGEN_CODEGEN_H__
 
-#include "quark/Frontend/AST/Expr.h"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
 #include <quark/Frontend/CodeGen/QuarkContext.h>
@@ -129,6 +128,26 @@ private:
                                llvm::ArrayRef<const VarDecl *> varDeclared);
   void emitInnerParallelInParallelLoop(ParallelForAuxVars &pfav,
                                        ParallelForAuxData &pfad, Stmt &body);
+
+  llvm::Value *emitOMPPrecond(const ForStmt &parallelFor, ParallelForBBs &pfb,
+                              ParallelForAuxVars &pfav,
+                              ParallelForAuxData &pfad);
+  llvm::Value *emitOMPPrecondThen(const ForStmt &parallelFor,
+                                  ParallelForBBs &pfb, ParallelForAuxVars &pfav,
+                                  ParallelForAuxData &pfad);
+  llvm::Value *emitOMPPrecondTrue(const ForStmt &parallelFor,
+                                  ParallelForBBs &pfb, ParallelForAuxVars &pfav,
+                                  ParallelForAuxData &pfad);
+  llvm::Value *emitOMPPrecondFalse(const ForStmt &parallelFor,
+                                   ParallelForBBs &pfb,
+                                   ParallelForAuxVars &pfav,
+                                   ParallelForAuxData &pfad);
+  void emitOMPPrecondEnd(const ForStmt &parallelFor, ParallelForBBs &pfb,
+                         ParallelForAuxVars &pfav, ParallelForAuxData &pfad,
+                         llvm::Value &, llvm::Value &);
+  void emitOMPLoopExit(const ForStmt &parallelFor, ParallelForBBs &pfb,
+                       ParallelForAuxVars &pfav, ParallelForAuxData &pfad);
+
   llvm::Value *emitInnerParallelCond(ParallelForAuxVars &pfav,
                                      ParallelForAuxData &pfad);
   void emitInnerParallelBody(ParallelForAuxVars &pfav, ParallelForAuxData &pfad,
