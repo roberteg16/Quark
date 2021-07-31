@@ -1,5 +1,4 @@
 #include "OMPTypes.h"
-#include "llvm/IR/DerivedTypes.h"
 
 #include <llvm/IR/LLVMContext.h>
 
@@ -48,9 +47,18 @@ llvm::Type *GetOMPkmpc_micro(llvm::LLVMContext &ctxt) {
       ->getPointerTo();
 }
 
-llvm::Type *GetOMPkmp_critical_name(llvm::LLVMContext &ctxt) {}
-llvm::Type *GetOMPsched_type(llvm::LLVMContext &ctxt) {}
-llvm::Type *GetOMPreduce_func(llvm::LLVMContext &ctxt) {}
+llvm::Type *GetOMPkmp_critical_name(llvm::LLVMContext &ctxt) {
+  llvm::llvm_unreachable_internal("Not implemented yet");
+}
+
+llvm::Type *GetOMPsched_type(llvm::LLVMContext &ctxt) {
+  llvm::llvm_unreachable_internal("Not implemented yet");
+}
+
+llvm::Type *GetOMPreduce_func(llvm::LLVMContext &ctxt) {
+  llvm::llvm_unreachable_internal("Not implemented yet");
+}
+
 } // namespace
 
 using namespace quark;
