@@ -30,6 +30,9 @@
 
 #include "LLVMTypeTranslation.h"
 #include "Mangler.h"
+#include "OMPCodeGen.h"
+#include "OMPFunctions.h"
+#include "OMPTypes.h"
 #include "RecoverVarsUsed.h"
 
 using namespace quark;
@@ -89,45 +92,21 @@ void CodeGen::emitForLoop(const ForStmt &forStmt) {
   emitBlock(*endBB);
 }
 
-static llvm::StructType *CreateOMPIdentType(llvm::LLVMContext &ctxt) {
-  llvm::Type *types[] = {
-      llvm::Type::getInt32Ty(ctxt),          llvm::Type::getInt32Ty(ctxt),
-      llvm::Type::getInt32Ty(ctxt),          llvm::Type::getInt32Ty(ctxt),
-      llvm::PointerType::getInt8PtrTy(ctxt),
-  };
-  static llvm::StructType *ompStruct =
-      llvm::StructType::create(llvm::makeArrayRef(types), "struct.ident_t");
-
-  return ompStruct;
-}
-
-static llvm::FunctionType *GetOMPForkCallType(llvm::LLVMContext &ctxt) {
-  llvm::Type *typesOfCallBack[] = {llvm::Type::getInt32PtrTy(ctxt),
-                                   llvm::Type::getInt32PtrTy(ctxt)};
-  llvm::Type *callbackFuncTypePtr =
-      llvm::FunctionType::get(llvm::Type::getVoidTy(ctxt), typesOfCallBack,
-                              /*isVarArg*/ true)
-          ->getPointerTo();
-
-  llvm::Type *types[] = {CreateOMPIdentType(ctxt)->getPointerTo(),
-                         llvm::Type::getInt32Ty(ctxt), callbackFuncTypePtr};
-
-  return llvm::FunctionType::get(llvm::Type::getVoidTy(ctxt), types,
-                                 /*isVarArg*/ true);
-}
-
 static llvm::GlobalVariable *
 CreateOMPIndentGlobalVariable(llvm::LLVMContext &ctx,
-                              llvm::IRBuilder<> &irBuilder, llvm::Module &mod) {
+                              llvm::IRBuilder<> &irBuilder, llvm::Module &mod,
+                              IdentType identTypeKind) {
   llvm::Constant *cnts[] = {
       llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 0),
-      llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 2),
+      llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx),
+                             static_cast<std::uint64_t>(identTypeKind)),
       llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 0),
       llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(ctx), 0),
       irBuilder.CreateGlobalStringPtr("path/to/this/stmt"),
   };
 
-  llvm::StructType *identType = CreateOMPIdentType(ctx);
+  llvm::StructType *identType =
+      llvm::cast<llvm::StructType>(GetOMPType(OMPType::ident_t, ctx));
 
   llvm::Constant *constantStruct =
       llvm::ConstantStruct::get(identType, llvm::makeArrayRef(cnts));
@@ -174,11 +153,67 @@ CreateFunctionTypeForOutlinedParLoop(llvm::LLVMContext &ctx,
                                  /*isVarArg*/ false);
 }
 
+static Expr &GetIncrement(VarDecl &itVarDecl, Expr &expr) {
+  auto *binExpr = llvm::dyn_cast<BinaryExpr>(&expr);
+  assert(binExpr);
+
+  auto *varRefExpr = llvm::dyn_cast<VarRefExpr>(binExpr->Lhs.get());
+  assert(varRefExpr->RefVar == itVarDecl);
+
+  auto *rhsBinExpr = llvm::dyn_cast<BinaryExpr>(binExpr->Rhs.get());
+  assert(rhsBinExpr && rhsBinExpr->Op == BinaryOperatorKind::Add);
+  auto *implicitCast = llvm::dyn_cast<ImplicitCastExpr>(rhsBinExpr->Lhs.get());
+  assert(implicitCast &&
+         implicitCast->CastKind == ImplicitCastKind::LValueToRValue);
+
+  auto *rhsVarRefExpr =
+      llvm::dyn_cast<VarRefExpr>(implicitCast->CastedExpr.get());
+  assert(rhsVarRefExpr->RefVar == itVarDecl);
+
+  return *rhsBinExpr->Rhs;
+}
+
+static bool IsLogicalOperator(BinaryOperatorKind op) {
+  return op >= BinaryOperatorKind::LogicalStart &&
+         op <= BinaryOperatorKind::LogicalEnd;
+}
+
+static std::pair<Expr &, BinaryOperatorKind> GetCmpExprAndOp(VarDecl &itVarDecl,
+                                                             Expr &expr) {
+  auto *binExpr = llvm::dyn_cast<BinaryExpr>(&expr);
+  assert(binExpr);
+
+  assert(IsLogicalOperator(binExpr->Op));
+  auto *implicitCast = llvm::dyn_cast<ImplicitCastExpr>(binExpr->Lhs.get());
+  assert(implicitCast &&
+         implicitCast->CastKind == ImplicitCastKind::LValueToRValue);
+  auto *rhsVarRefExpr =
+      llvm::dyn_cast<VarRefExpr>(implicitCast->CastedExpr.get());
+  assert(rhsVarRefExpr->RefVar == itVarDecl);
+
+  return {*binExpr->Rhs, binExpr->Op};
+}
+
 void CodeGen::emitOutlinedParallelLoopFunc(
     const ForStmt &parallelFor, llvm::ArrayRef<const VarDecl *> varsUsed,
     llvm::ArrayRef<const VarDecl *> varsDeclared) {
   // Save in codegen context for later
   emitBlock(*llvm::BasicBlock::Create(Ctx.LLVMCtx, "entry"));
+
+  llvm::Argument *globalThreadID = CGCtx.CurrFuncLLVM->getArg(0);
+  llvm::Argument *boundThreadID = CGCtx.CurrFuncLLVM->getArg(1);
+
+  llvm::Type *itVarType =
+      TranslateType(Ctx.LLVMCtx, *parallelFor.VarDecl->VarDecl->Type, SM);
+
+  // Auxiliar variables needed for the parallel for
+  ParallelForAuxVars pfav(IRBuilder, *itVarType);
+
+  llvm::BasicBlock *prevRetBB = CGCtx.RetsBB;
+  auto recoverRetBB = llvm::make_scope_exit([=] { CGCtx.RetsBB = prevRetBB; });
+
+  // Create return block
+  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
 
   // Emit all allocas needed for params
   for (const VarDecl *varDecl : varsUsed) {
@@ -199,23 +234,197 @@ void CodeGen::emitOutlinedParallelLoopFunc(
     CGCtx.OutlinedVarDeclToAlloca[varDecl] = alloca;
   }
 
+  IRBuilder.CreateStore(globalThreadID, pfav.GTID);
+  IRBuilder.CreateStore(boundThreadID, pfav.BTID);
   // Create store for each param
   for (unsigned i = 0; i < varsUsed.size(); ++i) {
     IRBuilder.CreateStore(CGCtx.CurrFuncLLVM->getArg(i + 2),
                           CGCtx.OutlinedVarDeclToAlloca[varsUsed[i]]);
   }
 
-  llvm::BasicBlock *prevRetBB = CGCtx.RetsBB;
-  auto recoverRetBB = llvm::make_scope_exit([=] { CGCtx.RetsBB = prevRetBB; });
+  // Auxiliar data needed for the parallel for
+  ParallelForAuxData pfad(*parallelFor.VarDecl->VarDecl);
 
-  // Create return block
-  CGCtx.RetsBB = llvm::BasicBlock::Create(Ctx.LLVMCtx, "func.end");
-  emitForLoop(parallelFor);
+  assert(parallelFor.VarDecl->InitExpr && "VarDecl must have init value");
+  pfad.InitValue = getExpr(*parallelFor.VarDecl->InitExpr);
+  pfad.IncValue =
+      getExpr(GetIncrement(*parallelFor.VarDecl->VarDecl, *parallelFor.Inc));
+  // Auxiliar get blocks needed for the parallel for logic
+  ParallelForBBs pfb(Ctx.LLVMCtx);
+
+  IRBuilder.CreateBr(pfb.OMPPrecond);
+  emitBlock(*pfb.OMPPrecond);
+
+  auto [cmpExpr, op] =
+      GetCmpExprAndOp(*parallelFor.VarDecl->VarDecl, *parallelFor.Cond);
+  pfad.CmpValue = getExpr(cmpExpr);
+
+  // TODO handle cmp and, inc value those affect the creation of the following
+  // insts
+  IRBuilder.CreateStore(pfad.CmpValue, pfav.CaptureExpr);
+  auto *captureExpr1Val = IRBuilder.CreateSub(
+      IRBuilder.CreateSDiv(
+          IRBuilder.CreateSub(IRBuilder.CreateLoad(pfav.CaptureExpr),
+                              pfad.InitValue),
+          pfad.IncValue),
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1));
+  IRBuilder.CreateStore(captureExpr1Val, pfav.CaptureExpr1);
+
+  llvm::Instruction *itVar = IRBuilder.CreateLoad(
+      CGCtx.OutlinedVarDeclToAlloca[parallelFor.VarDecl->VarDecl.get()]);
+
+  auto *captureExpr = IRBuilder.CreateLoad(pfav.CaptureExpr);
+  auto *cmpInst = IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_SLT, itVar,
+                                      captureExpr);
+  IRBuilder.CreateCondBr(cmpInst, pfb.OMPPrecondThen, CGCtx.RetsBB);
+
+  emitBlock(*pfb.OMPPrecondThen);
+
+  IRBuilder.CreateStore(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 0),
+      pfav.LbOMP);
+  IRBuilder.CreateStore(IRBuilder.CreateLoad(pfav.CaptureExpr1), pfav.UbOMP);
+  IRBuilder.CreateStore(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1),
+      pfav.StrideOMP);
+  IRBuilder.CreateStore(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 0),
+      pfav.IsLastOMP);
+
+  auto *gtid = IRBuilder.CreateLoad(IRBuilder.CreateLoad(pfav.GTID));
+
+  llvm::FunctionCallee func =
+      GetOMPFunction(OMPFunction::for_static_init_4, *Mod);
+
+  llvm::Value *paramsStaticInitFunc[] = {
+      CreateOMPIndentGlobalVariable(Ctx.LLVMCtx, IRBuilder, *Mod,
+                                    IdentType::KMP_IDENT_KMPC),
+      gtid,
+      llvm::ConstantInt::get(
+          llvm::Type::getInt32Ty(Ctx.LLVMCtx),
+          static_cast<std::int32_t>(sched_type::kmp_sch_static)),
+      pfav.IsLastOMP,
+      pfav.LbOMP,
+      pfav.UbOMP,
+      pfav.StrideOMP,
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1),
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1)};
+
+  IRBuilder.CreateCall(func, paramsStaticInitFunc);
+
+  cmpInst = IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_SGT,
+                                IRBuilder.CreateLoad(pfav.UbOMP),
+                                IRBuilder.CreateLoad(pfav.CaptureExpr1));
+
+  IRBuilder.CreateCondBr(cmpInst, pfb.OMPCondTrue, pfb.OMPCondFalse);
+
+  emitBlock(*pfb.OMPCondTrue);
+  auto *captureExpr1 = IRBuilder.CreateLoad(pfav.CaptureExpr1);
+  IRBuilder.CreateBr(pfb.OMPCondEnd);
+
+  emitBlock(*pfb.OMPCondFalse);
+  auto *ompUb = IRBuilder.CreateLoad(pfav.UbOMP);
+  IRBuilder.CreateBr(pfb.OMPCondEnd);
+
+  emitBlock(*pfb.OMPCondEnd);
+
+  auto *phi = IRBuilder.CreatePHI(captureExpr1->getType(), 2);
+  phi->addIncoming(captureExpr1, pfb.OMPCondTrue);
+  phi->addIncoming(ompUb, pfb.OMPCondFalse);
+  IRBuilder.CreateStore(phi, pfav.UbOMP);
+  IRBuilder.CreateStore(IRBuilder.CreateLoad(pfav.LbOMP),
+                        pfav.IterationVariable);
+
+  emitInnerParallelInParallelLoop(pfav, pfad, *parallelFor.Body);
+
+  IRBuilder.CreateBr(pfb.OMPLoopExit);
+  emitBlock(*pfb.OMPLoopExit);
+
+  gtid = IRBuilder.CreateLoad(IRBuilder.CreateLoad(pfav.GTID));
+  // Get function call to omp library, fork func
+  llvm::FunctionCallee funcStaticFIni =
+      GetOMPFunction(OMPFunction::for_static_fini, *Mod);
+
+  llvm::Value *paramsFIniFunc[] = {
+      CreateOMPIndentGlobalVariable(Ctx.LLVMCtx, IRBuilder, *Mod,
+                                    IdentType::KMP_IDENT_WORK_LOOP),
+      gtid};
+  IRBuilder.CreateCall(funcStaticFIni, paramsFIniFunc);
 
   IRBuilder.CreateBr(CGCtx.RetsBB);
 
   emitBlock(*CGCtx.RetsBB);
   IRBuilder.CreateRetVoid();
+}
+
+llvm::Value *CodeGen::emitInnerParallelCond(ParallelForAuxVars &pfav,
+                                            ParallelForAuxData &pfad) {
+  auto itVar = IRBuilder.CreateLoad(pfav.IterationVariable);
+  auto upperBoundPlusOne = IRBuilder.CreateAdd(
+      IRBuilder.CreateLoad(pfav.UbOMP),
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1));
+  return IRBuilder.CreateCmp(llvm::CmpInst::Predicate::ICMP_ULT, itVar,
+                             upperBoundPlusOne);
+}
+
+void CodeGen::emitInnerParallelBody(ParallelForAuxVars &pfav,
+                                    ParallelForAuxData &pfad, Stmt &body) {
+  // Update real iteration of loop
+  auto *mul = IRBuilder.CreateMul(IRBuilder.CreateLoad(pfav.IterationVariable),
+                                  pfad.IncValue);
+  IRBuilder.CreateStore(IRBuilder.CreateAdd(mul, pfad.InitValue),
+                        pfav.ArtificialVarDeclIterator);
+  emitStmt(body);
+  /*%15 = load i32, i32* %.omp.iv, align 4, !dbg !44
+  %mul = mul i32 %15, 30, !dbg !42
+  %add6 = add i32 1, %mul, !dbg !42
+  store i32 %add6, i32* %j3, align 4, !dbg !42*/
+}
+
+void CodeGen::emitInnerParallelInc(ParallelForAuxVars &pfav,
+                                   ParallelForAuxData &pfad) {
+  IRBuilder.CreateStore(
+      IRBuilder.CreateAdd(
+          IRBuilder.CreateLoad(pfav.IterationVariable),
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx.LLVMCtx), 1)),
+      pfav.IterationVariable);
+}
+
+void CodeGen::emitInnerParallelInParallelLoop(ParallelForAuxVars &pfav,
+                                              ParallelForAuxData &pfad,
+                                              Stmt &body) {
+  auto *ompInnerForCond =
+      llvm::BasicBlock::Create(Ctx.LLVMCtx, "omp.inner.for.cond");
+  auto *ompInnerForBody =
+      llvm::BasicBlock::Create(Ctx.LLVMCtx, "omp.inner.for.body");
+  auto *ompInnerForBodyContinue =
+      llvm::BasicBlock::Create(Ctx.LLVMCtx, "omp.body.continue");
+  auto *ompInnerForInc =
+      llvm::BasicBlock::Create(Ctx.LLVMCtx, "omp.inner.for.inc");
+  auto *ompInnerForEnd =
+      llvm::BasicBlock::Create(Ctx.LLVMCtx, "omp.inner.for.end");
+
+  CGCtx.OutlinedVarDeclToAlloca[&pfad.ItVarDecl] =
+      pfav.ArtificialVarDeclIterator;
+
+  IRBuilder.CreateBr(ompInnerForCond);
+
+  emitBlock(*ompInnerForCond);
+  auto *cond = emitInnerParallelCond(pfav, pfad);
+  IRBuilder.CreateCondBr(cond, ompInnerForBody, ompInnerForEnd);
+
+  emitBlock(*ompInnerForBody);
+  emitInnerParallelBody(pfav, pfad, body);
+  IRBuilder.CreateBr(ompInnerForBodyContinue);
+
+  emitBlock(*ompInnerForBodyContinue);
+  IRBuilder.CreateBr(ompInnerForInc);
+
+  emitBlock(*ompInnerForInc);
+  emitInnerParallelInc(pfav, pfad);
+  IRBuilder.CreateBr(ompInnerForCond);
+
+  emitBlock(*ompInnerForEnd);
 }
 
 void CodeGen::emitParallelForLoop(const ForStmt &forStmt) {
@@ -236,7 +445,8 @@ void CodeGen::emitParallelForLoop(const ForStmt &forStmt) {
 
   llvm::SmallVector<llvm::Value *, 5> params;
   // Add Ident_t struct required by OMP fork
-  params.push_back(CreateOMPIndentGlobalVariable(Ctx.LLVMCtx, IRBuilder, *Mod));
+  params.push_back(CreateOMPIndentGlobalVariable(Ctx.LLVMCtx, IRBuilder, *Mod,
+                                                 IdentType::KMP_IDENT_KMPC));
   // Add num of extra params (vars used inside the outline function)
   params.push_back(llvm::ConstantInt::get(
       llvm::IntegerType::getInt32Ty(Ctx.LLVMCtx), varUsedNotDeclared.size()));
@@ -250,11 +460,10 @@ void CodeGen::emitParallelForLoop(const ForStmt &forStmt) {
   }
 
   // Get function call to omp library, fork func
-  llvm::FunctionCallee funcCallee = Mod->getOrInsertFunction(
-      "__kmpc_fork_call", GetOMPForkCallType(Ctx.LLVMCtx));
+  llvm::FunctionCallee func = GetOMPFunction(OMPFunction::fork_call, *Mod);
 
   // Finally emit the call
-  IRBuilder.CreateCall(funcCallee, params);
+  IRBuilder.CreateCall(func, params);
 
   auto *currentFunc = CGCtx.CurrFuncLLVM;
   auto recoverFucn =

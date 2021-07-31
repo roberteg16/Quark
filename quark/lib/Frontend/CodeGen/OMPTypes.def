@@ -1,0 +1,17 @@
+#ifndef QK_OMPType
+#define QK_OMPType(ID)
+#endif
+
+
+QK_OMPType(ident_t)
+QK_OMPType(Void)
+QK_OMPType(kmp_int32)
+QK_OMPType(kmp_uint32)
+QK_OMPType(kmp_int64)
+QK_OMPType(kmp_uint64)
+QK_OMPType(kmpc_micro)
+QK_OMPType(kmp_critical_name)
+QK_OMPType(sched_type)
+QK_OMPType(reduce_func)
+
+#undef QK_OMPType

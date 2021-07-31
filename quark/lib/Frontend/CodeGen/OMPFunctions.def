@@ -1,0 +1,117 @@
+#include "OMPTypes.def"
+
+#ifndef QK_OMPFunction
+#define QK_OMPFunction(ID, RetType, IsVarArgs, ...)
+#endif
+
+#ifndef QK_PTR
+#define QK_PTR(ID) ID->getPointerTo()
+#endif
+
+#ifndef QK_TYPE
+#define QK_TYPE(ID) quark::GetOMPType(quark::OMPType::ID, mod.getContext())
+#endif
+
+
+// Startup and shutdown
+QK_OMPFunction(begin,                      QK_TYPE(Void), false,      QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmp_int32))
+QK_OMPFunction(end,                        QK_TYPE(Void), false,      QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32))
+
+// Parallel (fork/join)
+QK_OMPFunction(push_num_threads,           QK_TYPE(Void), false,      QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmp_int32))
+QK_OMPFunction(fork_call,                  QK_TYPE(Void), true,       QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmpc_micro))
+QK_OMPFunction(push_num_teams,             QK_TYPE(Void), false,      QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmp_int32), QK_TYPE(kmp_int32))
+QK_OMPFunction(fork_teams,                 QK_TYPE(Void), true,       QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmp_int32), QK_TYPE(kmpc_micro))
+QK_OMPFunction(serialized_parallel,        QK_TYPE(Void), false,      QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmp_int32))
+QK_OMPFunction(end_serialized_parallel,    QK_TYPE(Void), false,      QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                      QK_TYPE(kmp_int32))
+
+/*
+// Thread information
+QK_OMPFunction(global_thread_num,           QK_TYPE(Void), false)
+QK_OMPFunction(global_num_threads,          QK_TYPE(Void), false)
+QK_OMPFunction(bound_thread_num,            QK_TYPE(Void), false)
+QK_OMPFunction(bound_num_threads,           QK_TYPE(Void), false)
+QK_OMPFunction(in_parallel,                 QK_TYPE(Void), false)
+
+// Work sharing
+QK_OMPFunction(master,                      QK_TYPE(Void), false)
+QK_OMPFunction(end_master,                  QK_TYPE(Void), false)
+QK_OMPFunction(ordered,                     QK_TYPE(Void), false)
+QK_OMPFunction(end_ordered,                 QK_TYPE(Void), false)
+QK_OMPFunction(critical,                    QK_TYPE(Void), false)
+QK_OMPFunction(end_critical,                QK_TYPE(Void), false)
+QK_OMPFunction(single,                      QK_TYPE(Void), false)
+QK_OMPFunction(end_single,                  QK_TYPE(Void), false)
+*/
+
+QK_OMPFunction(for_static_fini,             QK_TYPE(Void), false,  QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32))
+
+/*
+QK_OMPFunction(dispatch_init_4,             QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_init_4u,            QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_init_8,             QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_init_8u,            QK_TYPE(Void), false)
+QK_OMPFunction(dist_dispatch_init_4,        QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_next_4,             QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_next_4u,            QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_next_8,             QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_next_8u,            QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_fini_4,             QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_fini_8,             QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_fini_4u,            QK_TYPE(Void), false)
+QK_OMPFunction(dispatch_fini_8u,            QK_TYPE(Void), false)
+*/
+
+QK_OMPFunction(for_static_init_4,           QK_TYPE(Void), false,  QK_PTR(QK_TYPE(ident_t)), QK_TYPE(kmp_int32),
+                                                                   QK_TYPE(kmp_int32), QK_PTR(QK_TYPE(kmp_int32)),
+                                                                   QK_PTR(QK_TYPE(kmp_int32)), QK_PTR(QK_TYPE(kmp_int32)),
+                                                                   QK_PTR(QK_TYPE(kmp_int32)), QK_TYPE(kmp_int32),
+                                                                   QK_TYPE(kmp_int32))
+
+/*
+QK_OMPFunction(for_static_init_4u,          QK_TYPE(Void), false)
+QK_OMPFunction(for_static_init_8,           QK_TYPE(Void), false)
+QK_OMPFunction(for_static_init_8u,          QK_TYPE(Void), false)
+
+QK_OMPFunction(dist_for_static_init_4,      QK_TYPE(Void), false)
+QK_OMPFunction(dist_for_static_init_4u,     QK_TYPE(Void), false)
+QK_OMPFunction(dist_for_static_init_8,      QK_TYPE(Void), false)
+QK_OMPFunction(dist_for_static_init_8u,     QK_TYPE(Void), false)
+
+QK_OMPFunction(team_static_init_4,          QK_TYPE(Void), false)
+QK_OMPFunction(team_static_init_4u,         QK_TYPE(Void), false)
+QK_OMPFunction(team_static_init_8,          QK_TYPE(Void), false)
+QK_OMPFunction(team_static_init_8u,         QK_TYPE(Void), false)
+
+// Synchronization
+QK_OMPFunction(flush,                       QK_TYPE(Void), false)
+QK_OMPFunction(barrier,                     QK_TYPE(Void), false)
+QK_OMPFunction(barrier_master,              QK_TYPE(Void), false)
+QK_OMPFunction(end_barrier_master,          QK_TYPE(Void), false)
+QK_OMPFunction(barrier_master_nowait,       QK_TYPE(Void), false)
+QK_OMPFunction(reduce_nowait,               QK_TYPE(Void), false)
+QK_OMPFunction(end_reduce_nowait,           QK_TYPE(Void), false)
+QK_OMPFunction(reduce,                      QK_TYPE(Void), false)
+QK_OMPFunction(end_reduce,                  QK_TYPE(Void), false)
+
+// Thread private data support
+QK_OMPFunction(copyprivate,                 QK_TYPE(Void), false)
+QK_OMPFunction(threadprivate_register,      QK_TYPE(Void), false)
+QK_OMPFunction(threadprivate_cached,        QK_TYPE(Void), false)
+QK_OMPFunction(threadprivate_register_vec,  QK_TYPE(Void), false)
+
+// Tasking support
+QK_OMPFunction(omp_task_with_deps,          QK_TYPE(Void), false)
+QK_OMPFunction(omp_wait_deps,               QK_TYPE(Void), false)
+*/
+
+#undef QK_PTR
+#undef QK_TYPE
+#undef QK_OMPFunction

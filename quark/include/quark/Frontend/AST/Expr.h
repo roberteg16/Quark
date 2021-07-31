@@ -50,7 +50,8 @@ enum class BinaryOperatorKind {
   Div,
   Mod,
   Assign,
-  LogicalNotEquals,
+  LogicalStart,
+  LogicalNotEquals = LogicalStart,
   LogicalEquals,
   LogicalAnd,
   LogicalOr,
@@ -58,6 +59,7 @@ enum class BinaryOperatorKind {
   LogicalLessEqual,
   LogicalGreater,
   LogicalGreaterEqual,
+  LogicalEnd = LogicalGreaterEqual,
 };
 
 llvm::StringRef ToString(BinaryOperatorKind);

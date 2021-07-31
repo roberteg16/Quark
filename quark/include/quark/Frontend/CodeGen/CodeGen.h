@@ -1,6 +1,7 @@
 #ifndef __QUARK_FRONTEND_CODEGEN_CODEGEN_H__
 #define __QUARK_FRONTEND_CODEGEN_CODEGEN_H__
 
+#include "quark/Frontend/AST/Expr.h"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
 #include <quark/Frontend/CodeGen/QuarkContext.h>
@@ -14,6 +15,76 @@ class Function;
 } // namespace llvm
 
 namespace quark {
+
+struct ParallelForAuxVars {
+  llvm::AllocaInst *GTID;
+  llvm::AllocaInst *BTID;
+  llvm::AllocaInst *IterationVariable;
+  llvm::AllocaInst *LbOMP;
+  llvm::AllocaInst *UbOMP;
+  llvm::AllocaInst *StrideOMP;
+  llvm::AllocaInst *IsLastOMP;
+  llvm::AllocaInst *CaptureExpr;
+  llvm::AllocaInst *CaptureExpr1;
+
+  llvm::AllocaInst *ArtificialVarDeclIterator;
+
+  ParallelForAuxVars(llvm::IRBuilder<> &irBuilder, llvm::Type &itVarType) {
+    llvm::LLVMContext &llvmContext = irBuilder.getContext();
+    auto *i32PtrType = llvm::Type::getInt32Ty(llvmContext);
+    GTID = irBuilder.CreateAlloca(i32PtrType->getPointerTo(), nullptr,
+                                  "globalThreadID.addr");
+    BTID = irBuilder.CreateAlloca(i32PtrType->getPointerTo(), nullptr,
+                                  "boundThreadID.addr");
+
+    IterationVariable = irBuilder.CreateAlloca(&itVarType, nullptr, "omp.iv");
+    LbOMP = irBuilder.CreateAlloca(&itVarType, nullptr, "omp.lowerBound");
+    UbOMP = irBuilder.CreateAlloca(&itVarType, nullptr, "omp.upperBound");
+    StrideOMP = irBuilder.CreateAlloca(&itVarType, nullptr, "omp.stride");
+    IsLastOMP = irBuilder.CreateAlloca(i32PtrType, nullptr, "omp.isLastFlag");
+
+    CaptureExpr =
+        irBuilder.CreateAlloca(&itVarType, nullptr, "omp.capture_expr");
+    CaptureExpr1 =
+        irBuilder.CreateAlloca(&itVarType, nullptr, "omp.capture_expr1");
+
+    ArtificialVarDeclIterator =
+        irBuilder.CreateAlloca(&itVarType, nullptr, "artificial.var");
+    llvm::MDNode *node =
+        llvm::MDNode::get(llvmContext, llvm::MDString::get(llvmContext, "yes"));
+    ArtificialVarDeclIterator->setMetadata("par-local-del", node);
+  }
+};
+
+struct ParallelForAuxData {
+  VarDecl &ItVarDecl;
+  llvm::Value *InitValue;
+  llvm::Value *IncValue;
+  llvm::Value *CmpValue;
+  llvm::Value *ItVarValue;
+
+  ParallelForAuxData(VarDecl &var) : ItVarDecl(var) {}
+};
+
+struct ParallelForBBs {
+  llvm::BasicBlock *OMPPrecond;
+  llvm::BasicBlock *OMPPrecondThen;
+  llvm::BasicBlock *OMPPrecondEnd;
+  llvm::BasicBlock *OMPCondTrue;
+  llvm::BasicBlock *OMPCondFalse;
+  llvm::BasicBlock *OMPCondEnd;
+  llvm::BasicBlock *OMPLoopExit;
+
+  ParallelForBBs(llvm::LLVMContext &ctx) {
+    OMPPrecond = llvm::BasicBlock::Create(ctx, "omp.precond");
+    OMPPrecondThen = llvm::BasicBlock::Create(ctx, "omp.precond.then");
+    OMPPrecondEnd = llvm::BasicBlock::Create(ctx, "omp.precond.end");
+    OMPCondTrue = llvm::BasicBlock::Create(ctx, "omp.cond.true");
+    OMPCondFalse = llvm::BasicBlock::Create(ctx, "omp.cond.false");
+    OMPCondEnd = llvm::BasicBlock::Create(ctx, "omp.cond.end");
+    OMPLoopExit = llvm::BasicBlock::Create(ctx, "omp.loop.exit");
+  }
+};
 
 struct CodeGen {
   CodeGen(llvm::StringRef file, SourceModule &, QuarkContext &ctx);
@@ -50,10 +121,19 @@ private:
   void emitForLoop(const ForStmt &);
   void emitParallelForLoop(const ForStmt &);
 
+  void emitOMPPreCondThen();
+
   void
   emitOutlinedParallelLoopFunc(const ForStmt &parallelFor,
                                llvm::ArrayRef<const VarDecl *> varsUsed,
                                llvm::ArrayRef<const VarDecl *> varDeclared);
+  void emitInnerParallelInParallelLoop(ParallelForAuxVars &pfav,
+                                       ParallelForAuxData &pfad, Stmt &body);
+  llvm::Value *emitInnerParallelCond(ParallelForAuxVars &pfav,
+                                     ParallelForAuxData &pfad);
+  void emitInnerParallelBody(ParallelForAuxVars &pfav, ParallelForAuxData &pfad,
+                             Stmt &body);
+  void emitInnerParallelInc(ParallelForAuxVars &pfav, ParallelForAuxData &pfad);
 
   llvm::Value *getExpr(const Expr &);
 

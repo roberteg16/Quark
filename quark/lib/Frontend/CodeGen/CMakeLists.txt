@@ -3,6 +3,8 @@ llvm_add_library(QuarkCodeGen
   Mangler.cpp
   LLVMTypeTranslation.cpp
   RecoverVarsUsed.cpp
+  OMPTypes.cpp
+  OMPFunctions.cpp
 
   LINK_LIBS
   QuarkAST
