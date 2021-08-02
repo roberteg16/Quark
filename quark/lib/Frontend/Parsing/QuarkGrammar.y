@@ -453,21 +453,14 @@ Term: Var_access_array_subscript  { $$ = std::move($1); }
     | Literal                     { $$ = std::move($1); };
 
 Func_call: ID "(" List_of_expr ")" {
-                                      if (const Type *type = ctx.findBuiltinType($1)) {
-                                        if ($3.size() > 1) {
-                                          throw quark::QuarkParser::syntax_error("Explicit conversion can only have one param");
-                                        }
-                                        $$ = std::make_unique<ExplicitCastExpr>(type->clone(), std::move($3.front()));
-                                      } else {
-                                        llvm::SmallVector<std::unique_ptr<Expr>, 4> params;
-                                        params.reserve($3.size());
-                                        for (auto &param : $3) {
-                                          params.push_back(AddCastIfNeeded(std::move(param)));
-                                        }
+                                     llvm::SmallVector<std::unique_ptr<Expr>, 4> params;
+                                     params.reserve($3.size());
+                                     for (auto &param : $3) {
+                                       params.push_back(AddCastIfNeeded(std::move(param)));
+                                     }
 
-                                        const FuncDecl *func = ctx.getFunctionDecl(FuncDecl::FuncSignature($1, params, nullptr));
-                                        $$ = std::make_unique<FunctionCallExpr>(*func, std::move(params));
-                                      }
+                                     const FuncDecl *func = ctx.getFunctionDecl(FuncDecl::FuncSignature($1, params, nullptr));
+                                     $$ = std::make_unique<FunctionCallExpr>(*func, std::move(params));
                                   };
 
 Method_call: Var_access_array_subscript List_of_accesses "(" List_of_expr ")" {

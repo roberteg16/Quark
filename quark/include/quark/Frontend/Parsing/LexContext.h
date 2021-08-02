@@ -35,7 +35,6 @@ struct LexContext {
   const FuncDecl *getFunctionDecl(const FuncDecl &funcDecl) const;
   const FuncDecl *getFunctionDecl(const FuncDecl::FuncSignature &funcSig) const;
   const Type *getType(llvm::StringRef id) const;
-  const TypeDecl *getTypeDecl(llvm::StringRef id) const;
   const VarDecl *getVarCurrentLevel(llvm::StringRef id) const;
   const VarDecl *getVar(llvm::StringRef id) const;
 

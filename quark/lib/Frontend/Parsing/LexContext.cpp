@@ -158,15 +158,6 @@ const Type *LexContext::getType(llvm::StringRef id) const {
   return type;
 }
 
-const TypeDecl *LexContext::getTypeDecl(llvm::StringRef id) const {
-  const TypeDecl *typeDecl = findTypeDecl(id);
-  if (!typeDecl) {
-    ThrowSyntaxError(llvm::Twine("type declaration '") + id + "' not found!");
-  }
-
-  return typeDecl;
-}
-
 const VarDecl *LexContext::getVarCurrentLevel(llvm::StringRef id) const {
   const VarDecl *varDecl = findVarCurrentLevel(id);
   if (!varDecl) {
