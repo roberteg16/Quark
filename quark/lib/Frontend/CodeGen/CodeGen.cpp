@@ -634,6 +634,12 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
   case ExprKind::UnaryExpr: {
     const auto &unaryExpr = *llvm::cast<UnaryExpr>(&expr);
     llvm::Value *lhs = getExpr(*unaryExpr.Lhs);
+
+    if (unaryExpr.Op == UnaryOperatorKind::AddressOf ||
+        unaryExpr.Op == UnaryOperatorKind::Dereference) {
+      return lhs;
+    }
+
     BuiltinTypeKind kind =
         llvm::cast<BuiltinType>(unaryExpr.Lhs->getType()).Kind;
     bool isFloatingCompatible =
@@ -641,9 +647,6 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
     bool isSigned = quark::IsSigned(kind);
 
     switch (unaryExpr.Op) {
-    case UnaryOperatorKind::AddressOf:
-    case UnaryOperatorKind::Dereference:
-      return lhs;
     case UnaryOperatorKind::ArithmeticNegation:
       return isFloatingCompatible ? IRBuilder.CreateFNeg(lhs)
                                   : IRBuilder.CreateNeg(lhs);
@@ -663,6 +666,8 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
                                  isSigned),
           expr);
     }
+    default:
+      llvm::llvm_unreachable_internal();
     }
   }
   case ExprKind::CharExpr: {

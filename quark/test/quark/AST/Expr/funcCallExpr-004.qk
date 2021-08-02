@@ -9,6 +9,7 @@ fn bar: a i32 -> void {}
 fn foo: -> void {
   bar(*baz());
 //      CHECK:FunctionCallExpr: bar (i32) -> void
+// CHECK-NEXT:ImplicitCastExpr: LValueToRValue
 // CHECK-NEXT:UnaryExpr: i32 (*)
 // CHECK-NEXT:FunctionCallExpr: baz () -> *i32
 }

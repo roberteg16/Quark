@@ -418,7 +418,7 @@ Expr: "(" Expr ")"       { $$ = std::move($2); }
                               }
     | ALLOC ID "[" Expr "]" List_of_static_arrays {
                                                     auto ptrType = std::make_unique<PtrType>(ctx.getType($2)->clone());
-                                                    $$ = std::make_unique<AllocExpr>(std::move(ptrType), std::move($4));
+                                                    $$ = std::make_unique<AllocExpr>(std::move(ptrType), AddCastIfNeeded(std::move($4)));
                                                   }
     | Term { $$ = std::move($1); };
 
@@ -459,8 +459,14 @@ Func_call: ID "(" List_of_expr ")" {
                                         }
                                         $$ = std::make_unique<ExplicitCastExpr>(type->clone(), std::move($3.front()));
                                       } else {
-                                        const FuncDecl *func = ctx.getFunctionDecl(FuncDecl::FuncSignature($1, $3, nullptr));
-                                        $$ = std::make_unique<FunctionCallExpr>(*func, std::move($3));
+                                        llvm::SmallVector<std::unique_ptr<Expr>, 4> params;
+                                        params.reserve($3.size());
+                                        for (auto &param : $3) {
+                                          params.push_back(AddCastIfNeeded(std::move(param)));
+                                        }
+
+                                        const FuncDecl *func = ctx.getFunctionDecl(FuncDecl::FuncSignature($1, params, nullptr));
+                                        $$ = std::make_unique<FunctionCallExpr>(*func, std::move(params));
                                       }
                                   };
 
@@ -475,9 +481,16 @@ Method_call: Var_access_array_subscript List_of_accesses "(" List_of_expr ")" {
                                                                                 CheckPtrToValueOrValue(memberExpr->getType());
                                                                                 memberExpr = DerefererenceIfNeeded(std::move(memberExpr), accesses[0]);
 
+                                                                                llvm::SmallVector<std::unique_ptr<Expr>, 4> params;
+                                                                                params.reserve($4.size());
+                                                                                for (auto &param : $4) {
+                                                                                  params.push_back(AddCastIfNeeded(std::move(param)));
+                                                                                }
+
                                                                                 $$ = std::make_unique<MemberCallExpr>(
-                                                                                    *ctx.getFunctionDecl(FuncDecl::FuncSignature(accesses[0].Name, $4, memberExpr->getType().clone())),
-                                                                                    std::move(memberExpr), $4);
+                                                                                    *ctx.getFunctionDecl(FuncDecl::FuncSignature(accesses[0].Name, params,
+                                                                                                                                 memberExpr->getType().clone())),
+                                                                                    std::move(memberExpr), params);
                                                                               };
 
 List_of_expr: List_of_expr1 { $$ = std::move($1); }
