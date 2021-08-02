@@ -416,10 +416,10 @@ Expr: "(" Expr ")"       { $$ = std::move($2); }
                                 $$ = std::make_unique<AllocExpr>(std::make_unique<PtrType>(ctx.getType($2)->clone()),
                                                                  std::make_unique<IntegerExpr>(1));
                               }
-    | ALLOC ID "[" Expr "]" List_of_static_arrays {
-                                                    auto ptrType = std::make_unique<PtrType>(ctx.getType($2)->clone());
-                                                    $$ = std::make_unique<AllocExpr>(std::move(ptrType), AddCastIfNeeded(std::move($4)));
-                                                  }
+    | ALLOC ID "[" Expr "]" {
+                              auto ptrType = std::make_unique<PtrType>(ctx.getType($2)->clone());
+                              $$ = std::make_unique<AllocExpr>(std::move(ptrType), AddCastIfNeeded(std::move($4)));
+                            }
     | Term { $$ = std::move($1); };
 
 Type_declaration: List_of_pointers ID List_of_static_arrays  {
