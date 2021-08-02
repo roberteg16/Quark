@@ -301,8 +301,8 @@ llvm::StringRef quark::ToString(TypeCasting typeCasting) {
     return "SExt";
   case TypeCasting::FPTrunc:
     return "FPTrunc";
-  case TypeCasting::PFExt:
-    return "PFExt";
+  case TypeCasting::FPExt:
+    return "FPExt";
   case TypeCasting::FPToInt:
     return "FPToInt";
   case TypeCasting::FPToUInt:
@@ -331,8 +331,8 @@ static TypeCasting CastBuiltinType(const BuiltinType &fromType,
 /*i32*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::ZExt,    tc::SExt,   tc::IntToFP, tc::IntToFP, tc::IntToFP, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
 /*u64*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::UIntToFP,tc::UIntToFP,tc::UIntToFP,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
 /*i64*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::IntToFP, tc::IntToFP, tc::IntToFP, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
-/*f32*/  {tc::Unknown,tc::FPToUInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::Same,    tc::PFExt,   tc::PFExt,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
-/*f64*/  {tc::Unknown,tc::FPToUInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPTrunc, tc::Same,    tc::PFExt,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*f32*/  {tc::Unknown,tc::FPToUInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::Same,    tc::FPExt,   tc::FPExt,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*f64*/  {tc::Unknown,tc::FPToUInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPTrunc, tc::Same,    tc::FPExt,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
 /*f80*/  {tc::Unknown,tc::FPToUInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPTrunc, tc::FPTrunc, tc::Same,    tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
 /*u128*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Same,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
 /*i128*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Same,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},

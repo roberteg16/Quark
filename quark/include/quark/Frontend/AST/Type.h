@@ -216,7 +216,7 @@ enum class TypeCasting {
   ZExt,
   SExt,
   FPTrunc,
-  PFExt,
+  FPExt,
   FPToInt,
   FPToUInt,
   IntToFP,

@@ -786,7 +786,7 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
       return IRBuilder.CreateSExt(llvmVal, llvmType);
     case TypeCasting::FPTrunc:
       return IRBuilder.CreateFPTrunc(llvmVal, llvmType);
-    case TypeCasting::PFExt:
+    case TypeCasting::FPExt:
       return IRBuilder.CreateFPExt(llvmVal, llvmType);
     case TypeCasting::FPToInt:
       return IRBuilder.CreateFPToSI(llvmVal, llvmType);
