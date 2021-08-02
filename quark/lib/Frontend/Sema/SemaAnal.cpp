@@ -107,6 +107,19 @@ void SemaAnalyzer::VisitArrayAccessExpr(const ArrayAccessExpr &expr) {
   }
 }
 
+void SemaAnalyzer::VisitExplicitCastExpr(const ExplicitCastExpr &explicitCast) {
+  TypeCasting castResult =
+      CastType(*explicitCast.ExprType, explicitCast.ConvertingExpr->getType());
+  if (castResult == TypeCasting::Unknown) {
+    llvm::outs() << "Error: invalid casting from '";
+    explicitCast.ConvertingExpr->getType().print(llvm::outs());
+    llvm::outs() << "' to '";
+    explicitCast.ExprType->print(llvm::outs());
+    llvm::outs() << "'\n";
+    Success = false;
+  }
+}
+
 void SemaAnalyzer::VisitDeallocStmt(const DeallocStmt &stmt) {
   auto *ptrType =
       llvm::dyn_cast<PtrType>(&stmt.ExprToDealloc->getType().desugar());

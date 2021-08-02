@@ -420,6 +420,9 @@ Expr: "(" Expr ")"       { $$ = std::move($2); }
                               auto ptrType = std::make_unique<PtrType>(ctx.getType($2)->clone());
                               $$ = std::make_unique<AllocExpr>(std::move(ptrType), AddCastIfNeeded(std::move($4)));
                             }
+    | "<" ID ">" "(" Expr ")" {
+                                $$ = std::make_unique<ExplicitCastExpr>(ctx.getType($2)->clone(), AddCastIfNeeded(std::move($5)));
+                              }
     | Term { $$ = std::move($1); };
 
 Type_declaration: List_of_pointers ID List_of_static_arrays  {

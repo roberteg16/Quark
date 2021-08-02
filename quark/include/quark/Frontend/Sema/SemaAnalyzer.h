@@ -21,6 +21,7 @@ private:
   void VisitDereferenceExpr(const DereferenceExpr &) override;
   void VisitAddressofExpr(const AddressofExpr &) override;
   void VisitArrayAccessExpr(const ArrayAccessExpr &) override;
+  void VisitExplicitCastExpr(const ExplicitCastExpr &) override;
 
   void VisitDeallocStmt(const DeallocStmt &) override;
   void VisitForStmt(const ForStmt &) override;

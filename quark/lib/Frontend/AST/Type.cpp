@@ -8,7 +8,20 @@
 
 using namespace quark;
 
-llvm::StringRef quark::GetTypeName(BuiltinTypeKind type) {
+template <class T, std::size_t N>
+constexpr std::size_t Size(const T (&array)[N]) noexcept {
+  return N;
+}
+
+constexpr std::size_t quark::GetNumOfBuiltinTypes() {
+  constexpr BuiltinTypeKind kinds[] = {
+#define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED) BuiltinTypeKind::TYPE,
+#include <quark/Frontend/AST/BuiltinTypes.def>
+  };
+  return Size(kinds);
+}
+
+llvm::StringRef quark::ToString(BuiltinTypeKind type) {
   switch (type) {
 #define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED)                             \
   case BuiltinTypeKind::TYPE:                                                  \
@@ -272,4 +285,95 @@ const CompoundType *quark::CheckCompoundOrTypeToCompound(const Type *type) {
   }
 
   return compType;
+}
+
+llvm::StringRef quark::ToString(TypeCasting typeCasting) {
+  switch (typeCasting) {
+  case TypeCasting::Unknown:
+    return "Unknown";
+  case TypeCasting::Same:
+    return "Same";
+  case TypeCasting::Trunc:
+    return "Trunc";
+  case TypeCasting::ZExt:
+    return "ZExt";
+  case TypeCasting::SExt:
+    return "SExt";
+  case TypeCasting::FPTrunc:
+    return "FPTrunc";
+  case TypeCasting::PFExt:
+    return "PFExt";
+  case TypeCasting::FPToInt:
+    return "FPToInt";
+  case TypeCasting::FPToUInt:
+    return "FPToUInt";
+  case TypeCasting::IntToFP:
+    return "IntToFP";
+  case TypeCasting::UIntToFP:
+    return "UIntToFp";
+  }
+}
+
+static TypeCasting CastBuiltinType(const BuiltinType &fromType,
+                                   const BuiltinType &toType) {
+  using tc = TypeCasting;
+  constexpr std::size_t numOfBuiltinTypes = GetNumOfBuiltinTypes();
+  constexpr TypeCasting castings[numOfBuiltinTypes][numOfBuiltinTypes] = {
+      // clang-format off
+//            Void        b1           u8           i8          u16          i16         u32          i32         u64          i64         f32          f64          f80          u128        i128        i256        u256        i512    u512
+/*Void*/ {tc::Same,   tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*b1*/   {tc::Unknown,tc::Same,    tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::ZExt,   tc::UIntToFP,tc::UIntToFP,tc::UIntToFP,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*u8*/   {tc::Unknown,tc::ZExt,    tc::Same,    tc::Same,   tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::ZExt,   tc::UIntToFP,tc::UIntToFP,tc::UIntToFP,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*i8*/   {tc::Unknown,tc::ZExt,    tc::Same,    tc::Same,   tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::SExt,   tc::ZExt,    tc::SExt,   tc::IntToFP, tc::IntToFP, tc::IntToFP, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*u16*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::ZExt,    tc::ZExt,   tc::ZExt,    tc::ZExt,   tc::UIntToFP,tc::UIntToFP,tc::UIntToFP,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*i16*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::ZExt,    tc::SExt,   tc::ZExt,    tc::SExt,   tc::IntToFP, tc::IntToFP, tc::IntToFP, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*u32*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::ZExt,    tc::ZExt,   tc::UIntToFP,tc::UIntToFP,tc::UIntToFP,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*i32*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::ZExt,    tc::SExt,   tc::IntToFP, tc::IntToFP, tc::IntToFP, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*u64*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::UIntToFP,tc::UIntToFP,tc::UIntToFP,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*i64*/  {tc::Unknown,tc::ZExt,    tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Trunc,   tc::Trunc,  tc::Same,    tc::Same,   tc::IntToFP, tc::IntToFP, tc::IntToFP, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*f32*/  {tc::Unknown,tc::UIntToFP,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::Same,    tc::PFExt,   tc::PFExt,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*f64*/  {tc::Unknown,tc::UIntToFP,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPTrunc, tc::Same,    tc::PFExt,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*f80*/  {tc::Unknown,tc::UIntToFP,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPToUInt,tc::FPToInt,tc::FPTrunc, tc::FPTrunc, tc::Same,    tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*u128*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Same,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*i128*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Same,   tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown},
+/*i256*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown,tc::Same,   tc::Unknown,tc::Unknown,tc::Unknown},
+/*u256*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown,tc::Unknown,tc::Same,   tc::Unknown,tc::Unknown},
+/*i512*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Same,   tc::Unknown},
+/*u512*/ {tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown,tc::Unknown, tc::Unknown, tc::Unknown, tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Unknown,tc::Same},
+      // clang-format on
+  };
+  return castings[static_cast<std::size_t>(fromType.Kind)]
+                 [static_cast<std::size_t>(toType.Kind)];
+}
+
+static TypeCasting CastBuiltinType(const BuiltinType &from, const Type &to) {
+  switch (to.getKind()) {
+  case TypeKind::ArrayType:
+  case TypeKind::CompoundType:
+  case TypeKind::FuncType:
+  case TypeKind::PtrType:
+    return TypeCasting::Unknown;
+  case TypeKind::AliasType: {
+    return CastBuiltinType(from, to.desugar());
+  }
+  case TypeKind::BuiltinType: {
+    return CastBuiltinType(from, *llvm::cast<BuiltinType>(&to));
+  }
+  }
+}
+
+TypeCasting quark::CastType(const Type &from, const Type &to) {
+  switch (from.getKind()) {
+  case TypeKind::ArrayType:
+  case TypeKind::CompoundType:
+  case TypeKind::FuncType:
+  case TypeKind::PtrType:
+    return TypeCasting::Unknown;
+  case TypeKind::AliasType: {
+    return CastType(from.desugar(), to);
+  }
+  case TypeKind::BuiltinType: {
+    return CastBuiltinType(*llvm::cast<BuiltinType>(&from), to);
+  }
+  }
 }

@@ -768,7 +768,35 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
   }
   case ExprKind::ExplicitCastExpr: {
     const auto &explicitCastExpr = *llvm::cast<ExplicitCastExpr>(&expr);
-    llvm::llvm_unreachable_internal("ExplicitCastExpr not implemented yet");
+    TypeCasting castType = CastType(explicitCastExpr.ConvertingExpr->getType(),
+                                    *explicitCastExpr.ExprType);
+    llvm::Type *llvmType =
+        TranslateType(Ctx.LLVMCtx, *explicitCastExpr.ExprType, SM);
+    llvm::Value *llvmVal = getExpr(*explicitCastExpr.ConvertingExpr);
+    switch (castType) {
+    case TypeCasting::Unknown:
+      llvm::llvm_unreachable_internal("This should be catched but the Sema");
+    case TypeCasting::Same:
+      return llvmVal;
+    case TypeCasting::Trunc:
+      return IRBuilder.CreateTrunc(llvmVal, llvmType);
+    case TypeCasting::ZExt:
+      return IRBuilder.CreateZExt(llvmVal, llvmType);
+    case TypeCasting::SExt:
+      return IRBuilder.CreateSExt(llvmVal, llvmType);
+    case TypeCasting::FPTrunc:
+      return IRBuilder.CreateFPTrunc(llvmVal, llvmType);
+    case TypeCasting::PFExt:
+      return IRBuilder.CreateFPExt(llvmVal, llvmType);
+    case TypeCasting::FPToInt:
+      return IRBuilder.CreateFPToSI(llvmVal, llvmType);
+    case TypeCasting::FPToUInt:
+      return IRBuilder.CreateFPToUI(llvmVal, llvmType);
+    case TypeCasting::IntToFP:
+      return IRBuilder.CreateSIToFP(llvmVal, llvmType);
+    case TypeCasting::UIntToFP:
+      return IRBuilder.CreateUIToFP(llvmVal, llvmType);
+    }
   }
   case ExprKind::ImplicitCastExpr: {
     const auto &implicitCastExpr = *llvm::cast<ImplicitCastExpr>(&expr);

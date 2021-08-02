@@ -43,12 +43,14 @@ protected:
   NamedType(TypeKind kind, llvm::StringRef name) : Type(kind), Name(name) {}
 };
 
-enum class BuiltinTypeKind {
+enum class BuiltinTypeKind : std::size_t {
 #define QK_BUILTIN_TYPE(TYPE, NAME, BYTES, SIGNED) TYPE,
 #include "BuiltinTypes.def"
 };
 
-auto GetTypeName(BuiltinTypeKind type) -> llvm::StringRef;
+constexpr std::size_t GetNumOfBuiltinTypes();
+
+auto ToString(BuiltinTypeKind type) -> llvm::StringRef;
 auto GetBytes(BuiltinTypeKind type) -> std::size_t;
 auto IsSigned(BuiltinTypeKind type) -> bool;
 auto IsUnsigned(BuiltinTypeKind type) -> bool;
@@ -59,7 +61,7 @@ auto IsBoolean(BuiltinTypeKind type) -> bool;
 
 struct BuiltinType : public NamedType {
   BuiltinType(BuiltinTypeKind kind)
-      : NamedType(TypeKind::BuiltinType, GetTypeName(kind)), Kind(kind) {}
+      : NamedType(TypeKind::BuiltinType, ToString(kind)), Kind(kind) {}
   virtual ~BuiltinType() {}
 
   auto bytes() const -> std::size_t;
@@ -206,6 +208,24 @@ struct FuncType : Type {
 };
 
 const CompoundType *CheckCompoundOrTypeToCompound(const Type *type);
+
+enum class TypeCasting {
+  Unknown,
+  Same,
+  Trunc,
+  ZExt,
+  SExt,
+  FPTrunc,
+  PFExt,
+  FPToInt,
+  FPToUInt,
+  IntToFP,
+  UIntToFP,
+};
+
+llvm::StringRef ToString(TypeCasting);
+
+TypeCasting CastType(const Type &from, const Type &to);
 
 } // namespace quark
 
