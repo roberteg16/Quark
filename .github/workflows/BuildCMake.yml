@@ -48,7 +48,7 @@ jobs:
           execute_process(COMMAND sudo apt-get install bison flex)
         elseif ("${{ runner.os }}" STREQUAL "macOS")
           execute_process(COMMAND brew install bison flex)
-          execute_process(COMMAND echo 'export PATH="/usr/local/opt/bison/bin:$PATH"')
+          execute_process(COMMAND export PATH="/usr/local/opt/bison/bin:$PATH")
         endif()
 
     - name: Download Ninja and CMake
