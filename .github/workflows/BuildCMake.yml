@@ -32,11 +32,11 @@ jobs:
             os: ubuntu-latest,
             cc: "gcc", cxx: "g++"
           }
-        - {
-            name: "macOS Latest Clang", artifact: "macOS.7z",
-            os: macos-latest,
-            cc: "clang", cxx: "clang++"
-          }
+        # - {
+        #     name: "macOS Latest Clang", artifact: "macOS.7z",
+        #     os: macos-latest,
+        #     cc: "clang", cxx: "clang++"
+        #   }
 
     steps:
     - uses: actions/checkout@v1
@@ -46,13 +46,9 @@ jobs:
       run: |
         if ("${{ runner.os }}" STREQUAL "Linux")
           execute_process(COMMAND sudo apt-get install bison flex)
-        elseif ("${{ runner.os }}" STREQUAL "macOS")
-          execute_process(COMMAND brew install bison flex)
-          execute_process(COMMAND echo 'export PATH="/usr/local/opt/flex/bin:$PATH"' >> /Users/runner/.bash_profile)
-          execute_process(COMMAND echo 'export PATH="/usr/local/opt/bison/bin:$PATH"' >> /Users/runner/.bash_profile)
         endif()
 
-    - name: Download Ninja and CMake
+    - name: Download Ninja, CMake, Bison, Flex
       shell: cmake -P {0}
       run: |
         set(cmake_version $ENV{CMAKE_VERSION})
@@ -71,12 +67,17 @@ jobs:
           set(cmake_suffix "Darwin-x86_64.tar.gz")
           set(cmake_dir "cmake-${cmake_version}-Darwin-x86_64/CMake.app/Contents/bin")
         endif()
+
+        # Ninja
         set(ninja_url "https://github.com/ninja-build/ninja/releases/download/v${ninja_version}/ninja-${ninja_suffix}")
         file(DOWNLOAD "${ninja_url}" ./ninja.zip SHOW_PROGRESS)
         execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf ./ninja.zip)
+
+        # Cmake
         set(cmake_url "https://github.com/Kitware/CMake/releases/download/v${cmake_version}/cmake-${cmake_version}-${cmake_suffix}")
         file(DOWNLOAD "${cmake_url}" ./cmake.zip SHOW_PROGRESS)
         execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf ./cmake.zip)
+
         # Add to PATH environment variable
         file(TO_CMAKE_PATH "$ENV{GITHUB_WORKSPACE}/${cmake_dir}" cmake_dir)
         set(path_separator ":")
@@ -141,6 +142,7 @@ jobs:
             -D CMAKE_MAKE_PROGRAM=ninja
             -D CMAKE_C_COMPILER_LAUNCHER=ccache
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -D BUILD_SHARED_LIBS:BOOL=ON
           RESULT_VARIABLE result
         )
         if (NOT result EQUAL 0)
