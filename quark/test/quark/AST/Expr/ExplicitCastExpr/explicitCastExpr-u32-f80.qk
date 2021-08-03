@@ -1,0 +1,8 @@
+// RUN: quark --emit-ast "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var from : u32;
+  var to := <f80>(from);
+// CHECK:ExplicitCastExpr: f80
+// CHECK:VarRefExpr: u32 from
+}

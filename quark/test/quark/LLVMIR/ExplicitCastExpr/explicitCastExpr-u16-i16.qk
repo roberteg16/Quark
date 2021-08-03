@@ -1,0 +1,8 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var from : u16;
+  var to := <i16>(from);
+//      CHECK:  %0 = load i16, i16* %from.var, align 2
+// CHECK-NEXT:  store i16 %0, i16* %to.var, align 2
+}

@@ -1,0 +1,7 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var from : i32;
+  var to := <f64>(from);
+// CHECK:  %1 = sitofp i32 %0 to double
+}

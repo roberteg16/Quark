@@ -1,0 +1,7 @@
+// RUN: quark --emit-ir "%s" 2>&1 | FileCheck "%s"
+
+fn foo: -> void {
+  var from : u16;
+  var to := <i8>(from);
+// CHECK:  %1 = trunc i16 %0 to i8
+}
