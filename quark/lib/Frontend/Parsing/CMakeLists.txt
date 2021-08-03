@@ -2,7 +2,7 @@
 find_package(BISON 3.5.1 REQUIRED)
 
 # Find Flex
-find_package(FLEX 2.6.4 REQUIRED)
+find_package(FLEX 2.5.35 REQUIRED)
 
 BISON_TARGET(QuarkParser
              QuarkGrammar.y
