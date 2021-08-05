@@ -48,7 +48,7 @@ jobs:
           execute_process(COMMAND sudo apt-get install bison flex)
         endif()
 
-    - name: Download Ninja, CMake, Bison, Flex
+    - name: Download Ninja and CMake
       shell: cmake -P {0}
       run: |
         set(cmake_version $ENV{CMAKE_VERSION})
@@ -143,6 +143,7 @@ jobs:
             -D CMAKE_C_COMPILER_LAUNCHER=ccache
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
             -D BUILD_SHARED_LIBS:BOOL=ON
+            -D LLVM_ENABLE_RTTI=ON
           RESULT_VARIABLE result
         )
         if (NOT result EQUAL 0)
