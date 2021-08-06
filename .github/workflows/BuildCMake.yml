@@ -189,17 +189,12 @@ jobs:
     - name: Run tests
       shell: cmake -P {0}
       run: |
-        include(ProcessorCount)
-        ProcessorCount(N)
-        set(ENV{CTEST_OUTPUT_ON_FAILURE} "ON")
-        execute_process(
-          COMMAND cmake -j ${N} --target check-quark
-          WORKING_DIRECTORY build
-          RESULT_VARIABLE result
-          OUTPUT_VARIABLE output
-          ERROR_VARIABLE output
-          ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE
-        )
+        execute_process(COMMAND export PATH="../build/bin:$PATH")
+        execute_process(COMMAND ninja check-quark
+                        RESULT_VARIABLE result
+                        OUTPUT_VARIABLE output
+                        ERROR_VARIABLE output
+                        ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE)
         if (NOT result EQUAL 0)
           message(FATAL_ERROR "Running tests failed!")
         endif()
