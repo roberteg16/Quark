@@ -34,6 +34,9 @@ struct ASTDumper : public ASTVisitor {
   void VisitExportModule(llvm::StringRef) override;
   void VisitImportModule(llvm::StringRef) override;
 
+  void printLocation(const location &loc);
+  void printLocationAndAddNodeToTree(const location &loc);
+
 #define QK_ASTNODE(NodeKind)                                                   \
   virtual void Visit##NodeKind(const NodeKind &) override;
 #include "ASTNodes.def"
@@ -44,6 +47,8 @@ struct ASTDumper : public ASTVisitor {
   std::vector<IdentationElement> Elements;
   std::size_t Depth;
 
+  std::size_t CurrentLine = 1;
+  std::string CurrentFile = "";
   bool PrintVerboseStmtHeaders = false;
 };
 

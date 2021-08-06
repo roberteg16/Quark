@@ -685,8 +685,9 @@ llvm::Value *CodeGen::getExpr(const Expr &expr) {
   }
   case ExprKind::StringExpr: {
     return IRBuilder.CreateBitCast(
-        IRBuilder.CreateGlobalStringPtr(
-            StrReplace(llvm::cast<StringExpr>(&expr)->Value, "\\n", "\n")),
+        IRBuilder.CreateGlobalStringPtr(StrReplace(
+            StrReplace(llvm::cast<StringExpr>(&expr)->Value, "\\n", "\n"),
+            "\\t", "\t")),
         llvm::Type::getInt8PtrTy(Ctx.LLVMCtx));
   }
   case ExprKind::VarRefExpr: {

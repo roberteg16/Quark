@@ -220,16 +220,18 @@ int main(int argc, const char *argv[]) {
     return 0;
   }
 
-  quark::LexContext ctx;
-  quark::SourceModule sm;
-
-  quark::QuarkParser quarkParser(ctx, sm);
-
   llvm::opt::Arg *input = args.getLastArg(OPT_INPUT);
   if (!input) {
     out << "No inputs found\n";
     return -1;
   }
+
+  std::string fileName(input->getSpelling());
+
+  quark::LexContext ctx(fileName);
+  quark::SourceModule sm;
+
+  quark::QuarkParser quarkParser(ctx, sm);
 
   llvm::StringRef file = input->getSpelling();
   yyin = fopen(file.data(), "r");

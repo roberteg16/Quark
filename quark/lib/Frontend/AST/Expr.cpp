@@ -18,110 +18,118 @@ Expr::~Expr() {}
 #include <quark/Frontend/AST/ASTNodes.def>
 
 // ==== Constructors ==== //
-BinaryExpr::BinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
-                       std::unique_ptr<Expr> rhs, ValueTypeKind valueKind)
-    : Expr(ExprKind::BinaryExpr, valueKind, lhs->ExprType->clone()),
-      Lhs(std::move(lhs)), Rhs(std::move(rhs)), Op(op) {}
-BinaryExpr::BinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
-                       std::unique_ptr<Expr> rhs, std::unique_ptr<Type> newType,
+BinaryExpr::BinaryExpr(location loc, BinaryOperatorKind op,
+                       std::unique_ptr<Expr> lhs, std::unique_ptr<Expr> rhs,
                        ValueTypeKind valueKind)
-    : Expr(ExprKind::BinaryExpr, valueKind, std::move(newType)),
+    : Expr(loc, ExprKind::BinaryExpr, valueKind, lhs->ExprType->clone()),
+      Lhs(std::move(lhs)), Rhs(std::move(rhs)), Op(op) {}
+BinaryExpr::BinaryExpr(location loc, BinaryOperatorKind op,
+                       std::unique_ptr<Expr> lhs, std::unique_ptr<Expr> rhs,
+                       std::unique_ptr<Type> newType, ValueTypeKind valueKind)
+    : Expr(loc, ExprKind::BinaryExpr, valueKind, std::move(newType)),
       Lhs(std::move(lhs)), Rhs(std::move(rhs)), Op(op) {}
 
-UnaryExpr::UnaryExpr(UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
-                     ValueTypeKind valueKind)
-    : Expr(ExprKind::UnaryExpr, valueKind, lhs->ExprType->clone()),
+UnaryExpr::UnaryExpr(location loc, UnaryOperatorKind kind,
+                     std::unique_ptr<Expr> lhs, ValueTypeKind valueKind)
+    : Expr(loc, ExprKind::UnaryExpr, valueKind, lhs->ExprType->clone()),
       Lhs(std::move(lhs)), Op(kind) {}
-UnaryExpr::UnaryExpr(UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
-                     std::unique_ptr<Type> newType, ValueTypeKind valueKind)
-    : Expr(ExprKind::UnaryExpr, valueKind, std::move(newType)),
+UnaryExpr::UnaryExpr(location loc, UnaryOperatorKind kind,
+                     std::unique_ptr<Expr> lhs, std::unique_ptr<Type> newType,
+                     ValueTypeKind valueKind)
+    : Expr(loc, ExprKind::UnaryExpr, valueKind, std::move(newType)),
       Lhs(std::move(lhs)), Op(kind) {}
 
 FunctionCallExpr::FunctionCallExpr(
-    const FuncDecl &funcDecl,
+    location loc, const FuncDecl &funcDecl,
     llvm::SmallVector<std::unique_ptr<Expr>, 4> params)
-    : Expr(ExprKind::FunctionCallExpr, ValueTypeKind::RightValue,
+    : Expr(loc, ExprKind::FunctionCallExpr, ValueTypeKind::RightValue,
            funcDecl.FuncType.RetType->clone()),
       FunctionDecl(funcDecl), Params(std::move(params)) {}
 
 MemberCallExpr::MemberCallExpr(
-    const FuncDecl &funcDecl, std::unique_ptr<Expr> expr,
+    location loc, const FuncDecl &funcDecl, std::unique_ptr<Expr> expr,
     llvm::SmallVectorImpl<std::unique_ptr<Expr>> &params)
-    : Expr(ExprKind::MemberCallExpr, ValueTypeKind::RightValue,
+    : Expr(loc, ExprKind::MemberCallExpr, ValueTypeKind::RightValue,
            funcDecl.FuncType.RetType->clone()),
       FunctionDecl(funcDecl), Accessor(std::move(expr)),
       Params(std::move(params)) {}
 
-MemberExpr::MemberExpr(std::unique_ptr<Expr> expr, const TypeFieldDecl &decl)
-    : Expr(ExprKind::MemberExpr, ValueTypeKind::LeftValue, decl.Type->clone()),
+MemberExpr::MemberExpr(location loc, std::unique_ptr<Expr> expr,
+                       const TypeFieldDecl &decl)
+    : Expr(loc, ExprKind::MemberExpr, ValueTypeKind::LeftValue,
+           decl.Type->clone()),
       Field(decl), Accessed(std::move(expr)) {}
 
-VarRefExpr::VarRefExpr(const VarDecl &var)
-    : Expr(ExprKind::VarRefExpr, ValueTypeKind::LeftValue, var.Type->clone()),
+VarRefExpr::VarRefExpr(location loc, const VarDecl &var)
+    : Expr(loc, ExprKind::VarRefExpr, ValueTypeKind::LeftValue,
+           var.Type->clone()),
       RefVar(var) {}
 
-ArrayAccessExpr::ArrayAccessExpr(std::unique_ptr<Expr> refVar,
+ArrayAccessExpr::ArrayAccessExpr(location loc, std::unique_ptr<Expr> refVar,
                                  std::unique_ptr<Type> type,
                                  std::unique_ptr<Expr> idx)
-    : Expr(ExprKind::ArrayAccessExpr, ValueTypeKind::LeftValue,
+    : Expr(loc, ExprKind::ArrayAccessExpr, ValueTypeKind::LeftValue,
            std::move(type)),
       RefVar(std::move(refVar)), Idx(std::move(idx)) {}
 
-AllocExpr::AllocExpr(std::unique_ptr<Type> type, std::unique_ptr<Expr> size)
-    : Expr(ExprKind::AllocExpr, ValueTypeKind::RightValue, type->clone()),
+AllocExpr::AllocExpr(location loc, std::unique_ptr<Type> type,
+                     std::unique_ptr<Expr> size)
+    : Expr(loc, ExprKind::AllocExpr, ValueTypeKind::RightValue, type->clone()),
       AllocType(std::move(type)), SizeToAlloc(std::move(size)) {}
 
-StringExpr::StringExpr(llvm::SmallString<40> v)
-    : Expr(ExprKind::StringExpr, ValueTypeKind::RightValue,
+StringExpr::StringExpr(location loc, llvm::SmallString<40> v)
+    : Expr(loc, ExprKind::StringExpr, ValueTypeKind::RightValue,
            std::make_unique<PtrType>(
                std::make_unique<BuiltinType>(BuiltinTypeKind::u8))),
       Value(v) {}
 
-IntegerExpr::IntegerExpr(long long v)
-    : Expr(ExprKind::IntegerExpr, ValueTypeKind::RightValue,
+IntegerExpr::IntegerExpr(location loc, long long v)
+    : Expr(loc, ExprKind::IntegerExpr, ValueTypeKind::RightValue,
            std::make_unique<BuiltinType>(BuiltinTypeKind::i32)),
       Value(v) {}
 
-CharExpr::CharExpr(char v)
-    : Expr(ExprKind::CharExpr, ValueTypeKind::RightValue,
+CharExpr::CharExpr(location loc, char v)
+    : Expr(loc, ExprKind::CharExpr, ValueTypeKind::RightValue,
            std::make_unique<BuiltinType>(BuiltinTypeKind::u8)),
       Value(v) {}
 
-FloatingExpr::FloatingExpr(long double v)
-    : Expr(ExprKind::FloatingExpr, ValueTypeKind::RightValue,
+FloatingExpr::FloatingExpr(location loc, long double v)
+    : Expr(loc, ExprKind::FloatingExpr, ValueTypeKind::RightValue,
            std::make_unique<BuiltinType>(BuiltinTypeKind::f32)),
       Value(v) {}
 
-BooleanExpr::BooleanExpr(bool v)
-    : Expr(ExprKind::BooleanExpr, ValueTypeKind::RightValue,
+BooleanExpr::BooleanExpr(location loc, bool v)
+    : Expr(loc, ExprKind::BooleanExpr, ValueTypeKind::RightValue,
            std::make_unique<BuiltinType>(BuiltinTypeKind::b1)),
       Value(v) {}
 
-DereferenceExpr::DereferenceExpr(std::unique_ptr<Expr> expr)
-    : Expr(ExprKind::DereferenceExpr, expr->getValueKind(),
+DereferenceExpr::DereferenceExpr(location loc, std::unique_ptr<Expr> expr)
+    : Expr(loc, ExprKind::DereferenceExpr, expr->getValueKind(),
            llvm::cast<PtrType>(&expr->getType())->PointeeType->clone()),
       DereferencingExpr(std::move(expr)) {}
 
-AddressofExpr::AddressofExpr(std::unique_ptr<Expr> expr)
-    : Expr(ExprKind::AddressofExpr, expr->getValueKind(),
+AddressofExpr::AddressofExpr(location loc, std::unique_ptr<Expr> expr)
+    : Expr(loc, ExprKind::AddressofExpr, expr->getValueKind(),
            std::make_unique<PtrType>(expr->getType().clone())),
       AdressOfExpr(std::move(expr)) {}
 
-ImplicitCastExpr::ImplicitCastExpr(std::unique_ptr<Expr> expr,
+ImplicitCastExpr::ImplicitCastExpr(location loc, std::unique_ptr<Expr> expr,
                                    ImplicitCastKind kind,
                                    ValueTypeKind valueKind)
-    : Expr(ExprKind::ImplicitCastExpr, valueKind,
+    : Expr(loc, ExprKind::ImplicitCastExpr, valueKind,
            (kind == ImplicitCastKind::ToBool
                 ? std::make_unique<BuiltinType>(BuiltinTypeKind::b1)
                 : expr->ExprType->clone())),
       CastedExpr(std::move(expr)), CastKind(kind) {}
 
-ExplicitCastExpr::ExplicitCastExpr(std::unique_ptr<Type> toType,
+ExplicitCastExpr::ExplicitCastExpr(location loc, std::unique_ptr<Type> toType,
                                    std::unique_ptr<Expr> expr)
-    : Expr(ExprKind::ExplicitCastExpr, expr->getValueKind(), std::move(toType)),
+    : Expr(loc, ExprKind::ExplicitCastExpr, expr->getValueKind(),
+           std::move(toType)),
       ConvertingExpr(std::move(expr)) {}
 
-std::unique_ptr<Expr> ImplicitCastExpr::Create(ImplicitCastKind kind,
+std::unique_ptr<Expr> ImplicitCastExpr::Create(location loc,
+                                               ImplicitCastKind kind,
                                                std::unique_ptr<Expr> expr) {
   if (kind == ImplicitCastKind::LValueToRValue) {
     ValueTypeKind vkind = ValueTypeKind::RightValue;
@@ -138,9 +146,10 @@ std::unique_ptr<Expr> ImplicitCastExpr::Create(ImplicitCastKind kind,
       }
     }
 
-    return std::make_unique<ImplicitCastExpr>(std::move(expr), kind, vkind);
+    return std::make_unique<ImplicitCastExpr>(loc, std::move(expr), kind,
+                                              vkind);
   }
-  return std::make_unique<ImplicitCastExpr>(std::move(expr), kind,
+  return std::make_unique<ImplicitCastExpr>(loc, std::move(expr), kind,
                                             expr->ValueKind);
 }
 

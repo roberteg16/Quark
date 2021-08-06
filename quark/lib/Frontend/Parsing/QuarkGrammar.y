@@ -4,9 +4,9 @@
 %skeleton "lalr1.cc"
 
 /// Ask bison to add location tracking for us
-/// %locations
+%locations
 /// Ask bison to generate position/location code into separated file
-/// %define api.location.file "SourceLoc.h"
+%define api.location.file "SourceLoc.h"
 
 /// Add prefix to all symbols
 /// %define api.symbol.prefix {S_}
@@ -65,9 +65,10 @@
   quark::QuarkParser::symbol_type yylex (quark::LexContext&,
                                          quark::SourceModule &sm);
 
-  void quark::QuarkParser::error(const std::string &error) {
-  llvm::outs() << "Error: " << error << "\n";
-}
+  void quark::QuarkParser::error(const location &loc, const std::string &error) {
+    quark::PrintLocation(llvm::outs(), loc);
+    llvm::outs() << ": Error: " << error << "\n";
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,15 +198,15 @@ Declaration: Declaration_type {
 
 Var_decl: ID Type_declaration   {
                                   ctx.checkNonExistenceOfVarCurrentLevel($1);
-                                  $$ = std::make_unique<VarDecl>($1, std::move($2));
+                                  $$ = std::make_unique<VarDecl>(@1+@2, $1, std::move($2));
                                 };
 
 Declaration_type: TYPE ID "{" List_of_field_decl "}"  {
                                                         ctx.checkNonExistenceOfType($2);
-                                                        $$ = std::make_unique<TypeDecl>($2, std::move($4));
+                                                        $$ = std::make_unique<TypeDecl>(@1+@5, $2, std::move($4));
                                                       };
 
-Field_decl: ID Type_declaration   { $$ = std::make_unique<TypeFieldDecl>($1, std::move($2)); };
+Field_decl: ID Type_declaration   { $$ = std::make_unique<TypeFieldDecl>(@1+@2, $1, std::move($2)); };
 
 List_of_field_decl: List_of_field_decl Field_decl {
                                                     $1.push_back(std::move($2));
@@ -214,7 +215,7 @@ List_of_field_decl: List_of_field_decl Field_decl {
                   | %empty                        {};
 
 Declaration_func: FN { ctx.enterScope(); } Reciver ID ":" List_of_params "->" Type_declaration {
-                                                                                    ctx.enterFunction($4);
+                                                                                    ctx.enterFunction(@1, $4);
                                                                                     auto &listOfParams = $6;
                                                                                     for (auto &param : listOfParams) {
                                                                                       ctx.addVar(*param);
@@ -224,13 +225,13 @@ Declaration_func: FN { ctx.enterScope(); } Reciver ID ":" List_of_params "->" Ty
                                                                                       ctx.addVar(*reciver);
                                                                                     }
                                                                                   } "{" List_of_stmt "}" {
-                                                                                                          $$ = ctx.exitFunction(std::move($6), std::move($8),
+                                                                                                          $$ = ctx.exitFunction(@1+@12, std::move($6), std::move($8),
                                                                                                                                 std::move($11), std::move($3));
                                                                                                           ctx.exitScope();
                                                                                                          };
 
 Reciver: "(" ID "*" ID ")"  {
-                          auto varDecl = std::make_unique<VarDecl>(std::move($2), std::make_unique<PtrType>(ctx.getType($4)->clone()));
+                          auto varDecl = std::make_unique<VarDecl>(@2+@4, std::move($2), std::make_unique<PtrType>(ctx.getType($4)->clone()));
                           varDecl->setKind(VarDeclKind::RecieverVar);
                           $$ = std::move(varDecl);
                         }
@@ -248,7 +249,7 @@ List_of_params1:  List_of_params1 "," Var_decl {
                                                 $$.back()->setKind(VarDeclKind::ParamVar);
                                                };
 
-Block: "{" { ctx.enterScope(); } List_of_stmt { ctx.exitScope(); } "}" { $$ = std::make_unique<BlockStmt>(std::move($3)); };
+Block: "{" { ctx.enterScope(); } List_of_stmt { ctx.exitScope(); } "}" { $$ = std::make_unique<BlockStmt>(@1+@5, std::move($3)); };
 
 List_of_stmt: List_of_stmt Stmt {
                                   $1.push_back(std::move($2));
@@ -257,48 +258,48 @@ List_of_stmt: List_of_stmt Stmt {
             | %empty            { };
 
 Stmt: FOR "(" { ctx.enterScope(); } Local_var_decl ";" Expr ";" Expr ")" Stmt { ctx.exitScope(); } {
-        $$ = std::make_unique<ForStmt>(std::move($4), ctx.castToBoolIfNeeded(std::move($6)),
+        $$ = std::make_unique<ForStmt>(@1+@10, std::move($4), ctx.castToBoolIfNeeded(std::move($6)),
                                        std::move($8), std::move($10), /*isParallel*/ false);
       }
     | PAR_FOR "(" { ctx.enterScope(); } Local_var_decl ";" Expr ";" Expr ")" Stmt { ctx.exitScope(); } {
-        $$ = std::make_unique<ForStmt>(std::move($4), ctx.castToBoolIfNeeded(std::move($6)),
+        $$ = std::make_unique<ForStmt>(@1+@10, std::move($4), ctx.castToBoolIfNeeded(std::move($6)),
                                        std::move($8), std::move($10), /*isParallel*/ true);
       }
     | IF "(" Expr ")" Stmt List_of_elsif {
-        $$ = std::make_unique<IfStmt>(ctx.castToBoolIfNeeded(std::move($3)), std::move($5),
+        $$ = std::make_unique<IfStmt>(@1+@5, ctx.castToBoolIfNeeded(std::move($3)), std::move($5),
                                       std::move($6));
       }
     | IF "(" Expr ")" Stmt List_of_elsif Else_stmt {
-        $$ = std::make_unique<IfStmt>(ctx.castToBoolIfNeeded(std::move($3)), std::move($5),
+        $$ = std::make_unique<IfStmt>(@1+@7, ctx.castToBoolIfNeeded(std::move($3)), std::move($5),
                                       std::move($6), std::move($7));
       }
     | WHILE "(" Expr ")" { ctx.enterScope(); } Stmt { ctx.exitScope(); } {
-        $$ = std::make_unique<WhileStmt>(ctx.castToBoolIfNeeded(std::move($3)), std::move($6));
+        $$ = std::make_unique<WhileStmt>(@1+@6, ctx.castToBoolIfNeeded(std::move($3)), std::move($6));
       }
     | RET Expr ";" {
-        $$ = ctx.makeReturnStmt(std::move($2));
+        $$ = ctx.makeReturnStmt(@1+@3, std::move($2));
       }
     | RET ";" {
-        $$ = ctx.makeReturnStmt(nullptr);
+        $$ = ctx.makeReturnStmt(@1+@2, nullptr);
       }
     | DEFER Expr ";" {
-        $$ = std::make_unique<DeferStmt>(std::move($2));
+        $$ = std::make_unique<DeferStmt>(@1+@3, std::move($2));
       }
     | PRINT "<-" Expr "{" List_of_expr "}" ";" {
         llvm::SmallVector<std::unique_ptr<Expr>> exprs;
         for (auto &param : $5) {
           exprs.push_back(AddCastIfNeededAndVarRefExpr(std::move(param)));
         }
-        $$ = std::make_unique<PrintStmt>(std::move($3), std::move(exprs));
+        $$ = std::make_unique<PrintStmt>(@1+@7, std::move($3), std::move(exprs));
       }
     | DEALLOC Expr ";" {
         auto expr = std::move($2);
         if (!llvm::isa<PtrType>(&expr->getType())) {
-          throw quark::QuarkParser::syntax_error("Deallocating non pointer");
+          throw quark::QuarkParser::syntax_error(expr->Location, "Deallocating non pointer");
         }
-        $$ = std::make_unique<DeallocStmt>(std::move(expr));
+        $$ = std::make_unique<DeallocStmt>(@1+@3, std::move(expr));
       }
-    | Expr ";"           { $$ = std::make_unique<ExprStmt>(std::move($1)); }
+    | Expr ";"           { $$ = std::make_unique<ExprStmt>(@1+@2, std::move($1)); }
     | Local_var_decl ";" { $$ = std::move($1); }
     | Block              { $$ = std::move($1); };
 
@@ -309,32 +310,32 @@ List_of_elsif: List_of_elsif Elsif_stmt {
              | %empty {};
 
 Elsif_stmt: ELSIF "(" Expr ")" Stmt {
-              $$ = IfStmt::CondAndStmt(ctx.castToBoolIfNeeded(std::move($3)), std::move($5));
+              $$ = IfStmt::CondAndStmt(@1+@5, ctx.castToBoolIfNeeded(std::move($3)), std::move($5));
             };
 
 Else_stmt: ELSE Stmt { $$ = std::move($2); };
 
 Local_var_decl: VAR ID ":" Type_declaration "=" Expr  {
                                           ctx.checkNonExistenceOfVarCurrentLevel($2);
-                                          auto varDecl = std::make_unique<VarDecl>($2, std::move($4));
+                                          auto varDecl = std::make_unique<VarDecl>(@1+@6, $2, std::move($4));
                                           varDecl->setKind(VarDeclKind::LocalVar);
                                           ctx.addVar(*varDecl);
-                                          $$ = std::make_unique<VarDeclStmt>(std::move(varDecl), AddCastIfNeededAndVarRefExpr(std::move($6)));
+                                          $$ = std::make_unique<VarDeclStmt>(@1+@6, std::move(varDecl), AddCastIfNeededAndVarRefExpr(std::move($6)));
                                         }
               | VAR ID ":=" Expr        {
                                           ctx.checkNonExistenceOfVarCurrentLevel($2);
                                           auto expr = std::move($4);
-                                          auto varDecl = std::make_unique<VarDecl>($2, expr->getType().clone());
+                                          auto varDecl = std::make_unique<VarDecl>(@1+@4, $2, expr->getType().clone());
                                           varDecl->setKind(VarDeclKind::LocalVar);
                                           ctx.addVar(*varDecl);
-                                          $$ = std::make_unique<VarDeclStmt>(std::move(varDecl), AddCastIfNeededAndVarRefExpr(std::move(expr)));
+                                          $$ = std::make_unique<VarDeclStmt>(@1+@4, std::move(varDecl), AddCastIfNeededAndVarRefExpr(std::move(expr)));
                                         }
               | VAR ID ":" Type_declaration           {
                                           ctx.checkNonExistenceOfVarCurrentLevel($2);
-                                          auto varDecl = std::make_unique<VarDecl>($2, std::move($4));
+                                          auto varDecl = std::make_unique<VarDecl>(@1+@4, $2, std::move($4));
                                           varDecl->setKind(VarDeclKind::LocalVar);
                                           ctx.addVar(*varDecl);
-                                          $$ = std::make_unique<VarDeclStmt>(std::move(varDecl), nullptr);
+                                          $$ = std::make_unique<VarDeclStmt>(@1+@4, std::move(varDecl), nullptr);
                                         };
 
 /*List_of_qualifiers: List_of_qualifiers Qualifier
@@ -343,85 +344,85 @@ Local_var_decl: VAR ID ":" Type_declaration "=" Expr  {
 Qualifier: MUT;*/
 
 Expr: "(" Expr ")"       { $$ = std::move($2); }
-    | Expr "+" Expr      { $$ = ctx.createArithmeticBinaryExpr(BinaryOperatorKind::Add, std::move($1), std::move($3)); }
-    | Expr "-" Expr      { $$ = ctx.createArithmeticBinaryExpr(BinaryOperatorKind::Minus, std::move($1), std::move($3)); }
-    | Expr "*" Expr      { $$ = ctx.createArithmeticBinaryExpr(BinaryOperatorKind::Mul, std::move($1), std::move($3)); }
-    | Expr "/" Expr      { $$ = ctx.createArithmeticBinaryExpr(BinaryOperatorKind::Div, std::move($1), std::move($3)); }
-    | Expr "%" Expr      { $$ = ctx.createArithmeticBinaryExpr(BinaryOperatorKind::Mod, std::move($1), std::move($3)); }
+    | Expr "+" Expr      { $$ = ctx.createArithmeticBinaryExpr(@1+@3, BinaryOperatorKind::Add, std::move($1), std::move($3)); }
+    | Expr "-" Expr      { $$ = ctx.createArithmeticBinaryExpr(@1+@3, BinaryOperatorKind::Minus, std::move($1), std::move($3)); }
+    | Expr "*" Expr      { $$ = ctx.createArithmeticBinaryExpr(@1+@3, BinaryOperatorKind::Mul, std::move($1), std::move($3)); }
+    | Expr "/" Expr      { $$ = ctx.createArithmeticBinaryExpr(@1+@3, BinaryOperatorKind::Div, std::move($1), std::move($3)); }
+    | Expr "%" Expr      { $$ = ctx.createArithmeticBinaryExpr(@1+@3, BinaryOperatorKind::Mod, std::move($1), std::move($3)); }
     | Expr "=" Expr      {
                             if ($1->isRValue()) {
-                              throw quark::QuarkParser::syntax_error("Assigning value to temporary value");
+                              throw quark::QuarkParser::syntax_error(@1+@3, "Assigning value to temporary value");
                             }
-                            $$ = std::make_unique<BinaryExpr>(BinaryOperatorKind::Assign, std::move($1),
+                            $$ = std::make_unique<BinaryExpr>(@1+@3, BinaryOperatorKind::Assign, std::move($1),
                                                               AddCastIfNeeded(std::move($3)),
                                                               ValueTypeKind::LeftValue);
                          }
-    | Expr "!=" Expr     { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalNotEquals,
+    | Expr "!=" Expr     { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalNotEquals,
                                                             std::move($1), std::move($3));
                          }
-    | Expr "==" Expr     { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalEquals,
+    | Expr "==" Expr     { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalEquals,
                                                             std::move($1), std::move($3));
                          }
-    | Expr "&&" Expr     { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalAnd,
+    | Expr "&&" Expr     { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalAnd,
                                                             std::move($1), std::move($3));
                          }
-    | Expr "||" Expr     { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalOr,
+    | Expr "||" Expr     { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalOr,
                                                             std::move($1), std::move($3));
                          }
-    | Expr "<" Expr      { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalLess,
+    | Expr "<" Expr      { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalLess,
                                                             std::move($1), std::move($3));
                          }
     | Expr "<=" Expr     {
-                           $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalLessEqual,
+                           $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalLessEqual,
                                                             std::move($1), std::move($3));
                          }
-    | Expr ">" Expr      { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalGreater,
+    | Expr ">" Expr      { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalGreater,
                                                             std::move($1), std::move($3));
                          }
-    | Expr ">=" Expr     { $$ = ctx.createLogicalBinaryExpr(BinaryOperatorKind::LogicalGreaterEqual,
+    | Expr ">=" Expr     { $$ = ctx.createLogicalBinaryExpr(@1+@3, BinaryOperatorKind::LogicalGreaterEqual,
                                                             std::move($1), std::move($3));
                          }
     | "!" Expr           {
-                          $$ = std::make_unique<UnaryExpr>(UnaryOperatorKind::LogicalNegation,
+                          $$ = std::make_unique<UnaryExpr>(@1+@2, UnaryOperatorKind::LogicalNegation,
                                                            AddCastIfNeeded(std::move($2)),
                                                            ValueTypeKind::RightValue);
                          }
     | "-" Expr %prec "&" {
-                          $$ = std::make_unique<UnaryExpr>(UnaryOperatorKind::ArithmeticNegation,
+                          $$ = std::make_unique<UnaryExpr>(@1+@2, UnaryOperatorKind::ArithmeticNegation,
                                                            AddCastIfNeeded(std::move($2)),
                                                            ValueTypeKind::RightValue);
                          }
     | "*" Expr %prec "&" {
                           auto ptrType = llvm::dyn_cast<PtrType>(&$2->getType());
                           if (!ptrType) {
-                            throw quark::QuarkParser::syntax_error("Deferencing non pointer");
+                            throw quark::QuarkParser::syntax_error(@1+@2, "Deferencing non pointer");
                           }
-                          $$ = std::make_unique<UnaryExpr>(UnaryOperatorKind::Dereference,
+                          $$ = std::make_unique<UnaryExpr>(@1+@2, UnaryOperatorKind::Dereference,
                                                            AddCastIfNeeded(std::move($2)),
                                                            ptrType->PointeeType->clone(),
                                                            ValueTypeKind::LeftValue);
                          }
     | "&" Expr           {
                           if ($2->isRValue()) {
-                            throw quark::QuarkParser::syntax_error("Cannot take address of r-value");
+                            throw quark::QuarkParser::syntax_error(@1+@2, "Cannot take address of r-value");
                           }
                           auto type = $2->getType().clone();
-                          $$ = std::make_unique<UnaryExpr>(UnaryOperatorKind::AddressOf,
+                          $$ = std::make_unique<UnaryExpr>(@1+@2, UnaryOperatorKind::AddressOf,
                                                            std::move($2), std::make_unique<PtrType>(std::move(type)),
                                                            ValueTypeKind::LeftValue);
                          }
     | Func_call          { $$ = std::move($1); }
     | Method_call        { $$ = std::move($1); }
     | ALLOC ID {
-                                $$ = std::make_unique<AllocExpr>(std::make_unique<PtrType>(ctx.getType($2)->clone()),
-                                                                 std::make_unique<IntegerExpr>(1));
+                                $$ = std::make_unique<AllocExpr>(@1+@2, std::make_unique<PtrType>(ctx.getType($2)->clone()),
+                                                                 std::make_unique<IntegerExpr>(@2, 1));
                               }
     | ALLOC ID "[" Expr "]" {
                               auto ptrType = std::make_unique<PtrType>(ctx.getType($2)->clone());
-                              $$ = std::make_unique<AllocExpr>(std::move(ptrType), AddCastIfNeeded(std::move($4)));
+                              $$ = std::make_unique<AllocExpr>(@1+@5, std::move(ptrType), AddCastIfNeeded(std::move($4)));
                             }
     | "<" ID ">" "(" Expr ")" {
-                                $$ = std::make_unique<ExplicitCastExpr>(ctx.getType($2)->clone(), AddCastIfNeeded(std::move($5)));
+                                $$ = std::make_unique<ExplicitCastExpr>(@1+@6, ctx.getType($2)->clone(), AddCastIfNeeded(std::move($5)));
                               }
     | Term { $$ = std::move($1); };
 
@@ -463,7 +464,7 @@ Func_call: ID "(" List_of_expr ")" {
                                      }
 
                                      const FuncDecl *func = ctx.getFunctionDecl(FuncDecl::FuncSignature($1, params, nullptr));
-                                     $$ = std::make_unique<FunctionCallExpr>(*func, std::move(params));
+                                     $$ = std::make_unique<FunctionCallExpr>(@1+@4, *func, std::move(params));
                                   };
 
 Method_call: Var_access_array_subscript List_of_accesses "(" List_of_expr ")" {
@@ -474,7 +475,7 @@ Method_call: Var_access_array_subscript List_of_accesses "(" List_of_expr ")" {
                                                                                   accesses = accesses.take_back(accesses.size() - 1);
                                                                                 }
 
-                                                                                CheckPtrToValueOrValue(memberExpr->getType());
+                                                                                CheckPtrToValueOrValue(*memberExpr);
                                                                                 memberExpr = DerefererenceIfNeeded(std::move(memberExpr), accesses[0]);
 
                                                                                 llvm::SmallVector<std::unique_ptr<Expr>, 4> params;
@@ -483,7 +484,7 @@ Method_call: Var_access_array_subscript List_of_accesses "(" List_of_expr ")" {
                                                                                   params.push_back(AddCastIfNeeded(std::move(param)));
                                                                                 }
 
-                                                                                $$ = std::make_unique<MemberCallExpr>(
+                                                                                $$ = std::make_unique<MemberCallExpr>(memberExpr->Location,
                                                                                     *ctx.getFunctionDecl(FuncDecl::FuncSignature(accesses[0].Name, params,
                                                                                                                                  memberExpr->getType().clone())),
                                                                                     std::move(memberExpr), params);
@@ -505,7 +506,7 @@ Var_access_array_subscript: Var_access List_of_dinamic_arrays {
                                                                     result = AddCastIfNeeded(std::move(result));
                                                                   }
                                                                   std::unique_ptr<Type> innerType = GetArrayAccessType(*result);
-                                                                  result = std::make_unique<ArrayAccessExpr>(std::move(result),
+                                                                  result = std::make_unique<ArrayAccessExpr>(result->Location, std::move(result),
                                                                                                              std::move(innerType),
                                                                                                              std::move(arrayAccess));
                                                                   loaded = true;
@@ -515,7 +516,7 @@ Var_access_array_subscript: Var_access List_of_dinamic_arrays {
                                                               };
 
 Var_access: ID {
-                $$ = std::make_unique<VarRefExpr>(*ctx.getVar($1));
+                $$ = std::make_unique<VarRefExpr>(@1, *ctx.getVar($1));
                };
 
 Member_access: Var_access_array_subscript List_of_accesses {
@@ -534,15 +535,15 @@ List_of_accesses: List_of_accesses Subtype_access {
                                                     $$.push_back(std::move($1));
                                                   };
 
-Subtype_access: "." ID List_of_dinamic_arrays  { $$ = {TypeAccessKind::Value, $2, std::move($3)}; }
-              | "->" ID List_of_dinamic_arrays { $$ = {TypeAccessKind::Pointer, $2, std::move($3)}; };
+Subtype_access: "." ID List_of_dinamic_arrays  { $$ = {@1+@3, TypeAccessKind::Value, $2, std::move($3)}; }
+              | "->" ID List_of_dinamic_arrays { $$ = {@1+@3, TypeAccessKind::Pointer, $2, std::move($3)}; };
 
 Literal: ConstNumber  { $$ = std::move($1); }
-       | STRING       { $$ = std::make_unique<StringExpr>($1); }
-       | CHAR         { $$ = std::make_unique<CharExpr>($1); }
-       | TRUE         { $$ = std::make_unique<BooleanExpr>($1); }
-       | FALSE        { $$ = std::make_unique<BooleanExpr>($1); };
+       | STRING       { $$ = std::make_unique<StringExpr>(@1, $1); }
+       | CHAR         { $$ = std::make_unique<CharExpr>(@1, $1); }
+       | TRUE         { $$ = std::make_unique<BooleanExpr>(@1, $1); }
+       | FALSE        { $$ = std::make_unique<BooleanExpr>(@1, $1); };
 
-ConstNumber: INTEGER  { $$ = std::make_unique<IntegerExpr>($1); }
-           | REAL     { $$ = std::make_unique<FloatingExpr>($1); };
+ConstNumber: INTEGER  { $$ = std::make_unique<IntegerExpr>(@1, $1); }
+           | REAL     { $$ = std::make_unique<FloatingExpr>(@1, $1); };
 %%

@@ -3,6 +3,7 @@ llvm_add_library(QuarkSema
 
   LINK_LIBS
   QuarkAST
+  QuarkParsing
 
   LINK_COMPONENTS
   Support

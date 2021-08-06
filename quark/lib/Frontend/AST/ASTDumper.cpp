@@ -1,8 +1,10 @@
 #include <quark/Frontend/AST/ASTDumper.h>
 
+#include <llvm/Support/raw_ostream.h>
+
 using namespace quark;
 
-static void printAll(llvm::ArrayRef<IdentationElement> elems,
+static void PrintAll(llvm::ArrayRef<IdentationElement> elems,
                      llvm::raw_ostream &out) {
   ElementTreeIndentationFormat formater(elems);
 
@@ -12,30 +14,90 @@ static void printAll(llvm::ArrayRef<IdentationElement> elems,
   }
 }
 
+void ASTDumper::printLocation(const location &loc) {
+  if ((!loc.begin.filename || !loc.end.filename) ||
+      (*loc.begin.filename != *loc.end.filename)) {
+    RSO << "<invalid file>";
+    return;
+  }
+
+  bool changedCurrentFile = false;
+  std::string &currentFile = *loc.begin.filename;
+  if (CurrentFile != currentFile) {
+    CurrentFile = currentFile;
+    changedCurrentFile = true;
+    RSO << "<file:'" << CurrentFile << "' ";
+  }
+
+  const position &begin = loc.begin;
+  const position &end = loc.end;
+
+  const bool sameLine = begin.line == end.line;
+  const bool sameCol = begin.column == end.column;
+  const bool differentColByOne = begin.column == (end.column - 1);
+
+  const bool newLine =
+      (!sameLine) || (sameLine && static_cast<int>(CurrentLine) != begin.line);
+
+  if (newLine) {
+    if (sameLine) {
+      RSO << "<line:" << begin.line;
+      if (sameCol || differentColByOne) {
+        RSO << " <col:" << begin.column << ">>";
+      } else {
+        RSO << " <col:" << begin.column << " col:" << end.column << ">>";
+      }
+    } else {
+      RSO << "<line:" << begin.line << " col:" << begin.column << ">-";
+      RSO << "<line:" << end.line << " col:" << end.column << ">";
+    }
+    CurrentLine = begin.line;
+  } else {
+    if (sameLine) {
+      if (sameCol || differentColByOne) {
+        RSO << "<col:" << begin.column << ">";
+      } else {
+        RSO << "<col:" << begin.column << " col:" << end.column << ">";
+      }
+    }
+  }
+
+  if (changedCurrentFile) {
+    RSO << ">";
+  }
+}
+
+void ASTDumper::printLocationAndAddNodeToTree(const location &loc) {
+  RSO << ' ';
+  printLocation(loc);
+  Elements.emplace_back(RSO.str(), Depth);
+  RSO.str().clear();
+}
+
 void ASTDumper::dump(const SourceModule &sm) {
   visit(sm);
-  printAll(Elements, Out);
+  PrintAll(Elements, Out);
 }
 
 void ASTDumper::dump(const Decl &decl) {
   visit(decl);
-  printAll(Elements, Out);
+  PrintAll(Elements, Out);
 }
 
 void ASTDumper::dump(const Stmt &stmt) {
   visit(stmt);
-  printAll(Elements, Out);
+  PrintAll(Elements, Out);
 }
 
 void ASTDumper::dump(const Expr &expr) {
   visit(expr);
-  printAll(Elements, Out);
+  PrintAll(Elements, Out);
 }
 
 void ASTDumper::dump(const Type &type) {
   visit(type);
   Elements.emplace_back(RSO.str(), Depth);
-  printAll(Elements, Out);
+  PrintAll(Elements, Out);
 }
 
 void ASTDumper::PreStmt() { Depth++; }
@@ -73,21 +135,18 @@ void ASTDumper::VisitVarDecl(const VarDecl &decl) {
   RSO << "VarDecl: (" << ToString(decl.getVarDeclKind()) << ") " << decl.Name
       << ' ';
   visit(*decl.Type);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(decl.Location);
 }
 
 void ASTDumper::VisitTypeDecl(const TypeDecl &decl) {
   RSO << "TypeDecl: " << decl.Name;
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(decl.Location);
 }
 
 void ASTDumper::VisitTypeFieldDecl(const TypeFieldDecl &decl) {
   RSO << "TypeFieldDecl: " << decl.Name << ' ';
   visit(*decl.Type);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(decl.Location);
 }
 
 void ASTDumper::VisitFuncDecl(const FuncDecl &decl) {
@@ -105,46 +164,39 @@ void ASTDumper::VisitFuncDecl(const FuncDecl &decl) {
   }
   RSO << " ) -> ";
   visit(*decl.FuncType.RetType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(decl.Location);
 }
 
 void ASTDumper::VisitAliasTypeDecl(const AliasTypeDecl &decl) {}
 
-void ASTDumper::VisitBlockStmt(const BlockStmt &blockStmt) {
+void ASTDumper::VisitBlockStmt(const BlockStmt &stmt) {
   RSO << "BlockStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitDeallocStmt(const DeallocStmt &stmt) {
   RSO << "DeallocStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitDeferStmt(const DeferStmt &stmt) {
   RSO << "DeferStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitExprStmt(const ExprStmt &stmt) {
   RSO << "ExprStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitForStmt(const ForStmt &stmt) {
   RSO << "ForStmt: " << (stmt.IsParallel ? "ParLoop" : "SeqLoop");
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitIfStmt(const IfStmt &stmt) {
   RSO << "IfStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitReturnStmt(const ReturnStmt &stmt) {
@@ -152,34 +204,28 @@ void ASTDumper::VisitReturnStmt(const ReturnStmt &stmt) {
   if (!stmt.ReturnValue) {
     RSO << " void";
   }
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitVarDeclStmt(const VarDeclStmt &stmt) {
   RSO << "VarDeclStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitWhileStmt(const WhileStmt &stmt) {
   RSO << "WhileStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitPrintStmt(const PrintStmt &stmt) {
   RSO << "PrintStmt:";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(stmt.Location);
 }
 
 void ASTDumper::VisitAllocExpr(const AllocExpr &expr) {
   RSO << "AllocExpr: ";
   visit(*expr.AllocType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
-  visit(*expr.SizeToAlloc);
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitFunctionCallExpr(const FunctionCallExpr &expr) {
@@ -194,8 +240,7 @@ void ASTDumper::VisitFunctionCallExpr(const FunctionCallExpr &expr) {
   }
   RSO << ") -> ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitMemberCallExpr(const MemberCallExpr &expr) {
@@ -212,116 +257,101 @@ void ASTDumper::VisitMemberCallExpr(const MemberCallExpr &expr) {
   }
   RSO << ") -> ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitMemberExpr(const MemberExpr &expr) {
   RSO << "MemberExpr: '";
   RSO << expr.Field.Name << "' ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitStringExpr(const StringExpr &expr) {
   RSO << "StringExpr: ";
   visit(*expr.ExprType);
   RSO << " \"" << expr.Value << "\"";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitIntegerExpr(const IntegerExpr &expr) {
   RSO << "IntegerExpr: ";
   visit(*expr.ExprType);
   RSO << " " << expr.Value;
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitFloatingExpr(const FloatingExpr &expr) {
   RSO << "FloatingExpr: ";
   visit(*expr.ExprType);
   RSO << " " << (double)expr.Value;
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitCharExpr(const CharExpr &expr) {
   RSO << "CharExpr: ";
   visit(*expr.ExprType);
   RSO << " '" << expr.Value << "'";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitVarRefExpr(const VarRefExpr &expr) {
   RSO << "VarRefExpr: ";
   visit(*expr.ExprType);
   RSO << " " << expr.RefVar.Name;
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitBinaryExpr(const BinaryExpr &expr) {
   RSO << "BinaryExpr: ";
   visit(*expr.ExprType);
   RSO << " (" << ToString(expr.Op) << ")";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitUnaryExpr(const UnaryExpr &expr) {
   RSO << "UnaryExpr: ";
   visit(*expr.ExprType);
   RSO << " (" << ToString(expr.Op) << ")";
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitAddressofExpr(const AddressofExpr &expr) {
   RSO << "AddressofExpr: ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitDereferenceExpr(const DereferenceExpr &expr) {
   RSO << "DereferenceExpr: ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitArrayAccessExpr(const ArrayAccessExpr &expr) {
   RSO << "ArrayAccessExpr: ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitExplicitCastExpr(const ExplicitCastExpr &expr) {
   RSO << "ExplicitCastExpr: ";
   visit(*expr.ExprType);
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitImplicitCastExpr(const ImplicitCastExpr &expr) {
   RSO << "ImplicitCastExpr: ";
   RSO << (expr.CastKind == ImplicitCastKind::LValueToRValue ? "LValueToRValue"
                                                             : "BoolCasting");
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 void ASTDumper::VisitBooleanExpr(const BooleanExpr &expr) {
   RSO << "BooleanExpr: ";
   visit(*expr.ExprType);
   RSO << " " << (expr.Value ? "true" : "false");
-  Elements.emplace_back(RSO.str(), Depth);
-  RSO.str().clear();
+  printLocationAndAddNodeToTree(expr.Location);
 }
 
 #define QK_TYPE(ID)                                                            \
