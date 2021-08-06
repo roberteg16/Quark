@@ -33,9 +33,10 @@ bool VarDecl::operator==(const VarDecl &rhs) const {
 }
 
 void FuncDecl::fillFunction(
-    llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
+    location loc, llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
     std::unique_ptr<Type> returnType, std::vector<std::unique_ptr<Stmt>> stmts,
     std::unique_ptr<VarDecl> reciver) {
+  Location = loc;
   Params = std::move(params);
   Body = std::move(stmts);
   Reciver = std::move(reciver);

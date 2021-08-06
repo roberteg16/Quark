@@ -2,6 +2,7 @@
 #define __QUARK_FRONTEND_AST_STMT_H__
 
 #include <quark/Frontend/AST/Expr.h>
+#include <quark/Frontend/AST/Node.h>
 
 #include <llvm/ADT/Optional.h>
 #include <llvm/ADT/SmallVector.h>
@@ -22,8 +23,8 @@ enum class StmtKind {
 #include "ASTNodes.def"
 };
 
-struct Stmt {
-  Stmt(StmtKind kind) : Kind(kind) {}
+struct Stmt : Node {
+  Stmt(location loc, StmtKind kind) : Node(loc), Kind(kind) {}
   virtual ~Stmt() = 0;
 
   virtual void print(llvm::raw_ostream &out) const;
@@ -35,8 +36,8 @@ struct Stmt {
 };
 
 struct BlockStmt : public Stmt {
-  BlockStmt(std::vector<std::unique_ptr<Stmt>> stmts)
-      : Stmt(StmtKind::BlockStmt), Stmts(std::move(stmts)) {}
+  BlockStmt(location loc, std::vector<std::unique_ptr<Stmt>> stmts)
+      : Stmt(loc, StmtKind::BlockStmt), Stmts(std::move(stmts)) {}
   virtual ~BlockStmt();
 
   static bool classof(const Stmt *stmt) {
@@ -47,8 +48,9 @@ struct BlockStmt : public Stmt {
 };
 
 struct VarDeclStmt : public Stmt {
-  VarDeclStmt(std::unique_ptr<VarDecl> varDecl, std::unique_ptr<Expr> initExpr)
-      : Stmt(StmtKind::VarDeclStmt), VarDecl(std::move(varDecl)),
+  VarDeclStmt(location loc, std::unique_ptr<VarDecl> varDecl,
+              std::unique_ptr<Expr> initExpr)
+      : Stmt(loc, StmtKind::VarDeclStmt), VarDecl(std::move(varDecl)),
         InitExpr(std::move(initExpr)) {}
   virtual ~VarDeclStmt();
 
@@ -61,10 +63,10 @@ struct VarDeclStmt : public Stmt {
 };
 
 struct ForStmt : public Stmt {
-  ForStmt(std::unique_ptr<VarDeclStmt> varDecl, std::unique_ptr<Expr> cond,
-          std::unique_ptr<Expr> inc, std::unique_ptr<Stmt> body,
-          bool isParallel)
-      : Stmt(StmtKind::ForStmt), VarDecl(std::move(varDecl)),
+  ForStmt(location loc, std::unique_ptr<VarDeclStmt> varDecl,
+          std::unique_ptr<Expr> cond, std::unique_ptr<Expr> inc,
+          std::unique_ptr<Stmt> body, bool isParallel)
+      : Stmt(loc, StmtKind::ForStmt), VarDecl(std::move(varDecl)),
         Cond(std::move(cond)), Inc(std::move(inc)), Body(std::move(body)),
         IsParallel(isParallel) {}
   virtual ~ForStmt();
@@ -85,17 +87,20 @@ struct IfStmt : public Stmt {
     CondAndStmt() = default;
     CondAndStmt(CondAndStmt &&) = default;
     CondAndStmt &operator=(CondAndStmt &&) = default;
-    CondAndStmt(std::unique_ptr<Expr> cond, std::unique_ptr<Stmt> stmt);
+    CondAndStmt(location loc, std::unique_ptr<Expr> cond,
+                std::unique_ptr<Stmt> stmt);
 
+    location Location;
     std::unique_ptr<Expr> Cond;
     std::unique_ptr<Stmt> Stmt;
   };
 
-  IfStmt(std::unique_ptr<Expr> cond, std::unique_ptr<Stmt> code,
+  IfStmt(location loc, std::unique_ptr<Expr> cond, std::unique_ptr<Stmt> code,
          llvm::SmallVectorImpl<CondAndStmt> &&elsifs,
          std::unique_ptr<Stmt> elseCode = nullptr)
-      : Stmt(StmtKind::IfStmt), Cond(std::move(cond)), Code(std::move(code)),
-        Elsifs(std::move(elsifs)), ElseCode(std::move(elseCode)) {}
+      : Stmt(loc, StmtKind::IfStmt), Cond(std::move(cond)),
+        Code(std::move(code)), Elsifs(std::move(elsifs)),
+        ElseCode(std::move(elseCode)) {}
 
   virtual ~IfStmt();
 
@@ -110,8 +115,9 @@ struct IfStmt : public Stmt {
 };
 
 struct WhileStmt : public Stmt {
-  WhileStmt(std::unique_ptr<Expr> cond, std::unique_ptr<Stmt> code)
-      : Stmt(StmtKind::WhileStmt), Cond(std::move(cond)),
+  WhileStmt(location loc, std::unique_ptr<Expr> cond,
+            std::unique_ptr<Stmt> code)
+      : Stmt(loc, StmtKind::WhileStmt), Cond(std::move(cond)),
         Code(std::move(code)) {}
   virtual ~WhileStmt();
 
@@ -124,9 +130,10 @@ struct WhileStmt : public Stmt {
 };
 
 struct ReturnStmt : public Stmt {
-  ReturnStmt(std::unique_ptr<Expr> retExpr)
-      : Stmt(StmtKind::ReturnStmt), ReturnValue(std::move(retExpr)) {}
-  ReturnStmt() : Stmt(StmtKind::ReturnStmt), ReturnValue(nullptr) {}
+  ReturnStmt(location loc, std::unique_ptr<Expr> retExpr)
+      : Stmt(loc, StmtKind::ReturnStmt), ReturnValue(std::move(retExpr)) {}
+  ReturnStmt(location loc)
+      : Stmt(loc, StmtKind::ReturnStmt), ReturnValue(nullptr) {}
   virtual ~ReturnStmt();
 
   static bool classof(const Stmt *stmt) {
@@ -137,8 +144,8 @@ struct ReturnStmt : public Stmt {
 };
 
 struct DeferStmt : public Stmt {
-  DeferStmt(std::unique_ptr<Expr> exprToDefer)
-      : Stmt(StmtKind::DeferStmt), ExprToDefer(std::move(exprToDefer)) {}
+  DeferStmt(location loc, std::unique_ptr<Expr> exprToDefer)
+      : Stmt(loc, StmtKind::DeferStmt), ExprToDefer(std::move(exprToDefer)) {}
   virtual ~DeferStmt();
 
   static bool classof(const Stmt *stmt) {
@@ -149,8 +156,9 @@ struct DeferStmt : public Stmt {
 };
 
 struct DeallocStmt : public Stmt {
-  DeallocStmt(std::unique_ptr<Expr> exprToDealloc)
-      : Stmt(StmtKind::DeallocStmt), ExprToDealloc(std::move(exprToDealloc)) {}
+  DeallocStmt(location loc, std::unique_ptr<Expr> exprToDealloc)
+      : Stmt(loc, StmtKind::DeallocStmt),
+        ExprToDealloc(std::move(exprToDealloc)) {}
   virtual ~DeallocStmt();
 
   static bool classof(const Stmt *stmt) {
@@ -161,8 +169,8 @@ struct DeallocStmt : public Stmt {
 };
 
 struct ExprStmt : public Stmt {
-  ExprStmt(std::unique_ptr<Expr> expr)
-      : Stmt(StmtKind::ExprStmt), Expr(std::move(expr)) {}
+  ExprStmt(location loc, std::unique_ptr<Expr> expr)
+      : Stmt(loc, StmtKind::ExprStmt), Expr(std::move(expr)) {}
   virtual ~ExprStmt();
 
   static bool classof(const Stmt *stmt) {
@@ -173,9 +181,9 @@ struct ExprStmt : public Stmt {
 };
 
 struct PrintStmt : public Stmt {
-  PrintStmt(std::unique_ptr<Expr> string,
+  PrintStmt(location loc, std::unique_ptr<Expr> string,
             llvm::SmallVector<std::unique_ptr<Expr>, 4> args)
-      : Stmt(StmtKind::PrintStmt), String(std::move(string)),
+      : Stmt(loc, StmtKind::PrintStmt), String(std::move(string)),
         Args(std::move(args)) {}
   virtual ~PrintStmt();
 

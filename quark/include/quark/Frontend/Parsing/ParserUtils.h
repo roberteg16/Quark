@@ -5,7 +5,9 @@
 
 namespace quark {
 
-void CheckPtrToValueOrValue(const Type &type);
+void PrintLocation(llvm::raw_ostream &out, const location loc);
+
+void CheckPtrToValueOrValue(const Expr &expr);
 
 std::unique_ptr<quark::Expr>
 DerefererenceIfNeeded(std::unique_ptr<quark::Expr> expr,

@@ -161,9 +161,12 @@ protected:
     PreExpr();
     auto onExit = llvm::make_scope_exit([&] { PostExpr(); });
     switch (expr.Kind) {
-    case ExprKind::AllocExpr:
-      VisitAllocExpr(*llvm::cast<AllocExpr>(&expr));
+    case ExprKind::AllocExpr: {
+      const auto &allocExpr = *llvm::cast<AllocExpr>(&expr);
+      VisitAllocExpr(allocExpr);
+      visit(*allocExpr.SizeToAlloc);
       return;
+    }
     case ExprKind::BinaryExpr: {
       const auto &binExpr = *llvm::cast<BinaryExpr>(&expr);
       VisitBinaryExpr(binExpr);

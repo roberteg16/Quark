@@ -1,6 +1,7 @@
 #ifndef __QUARK_FRONTEND_AST_DECL_H__
 #define __QUARK_FRONTEND_AST_DECL_H__
 
+#include <quark/Frontend/AST/Node.h>
 #include <quark/Frontend/AST/Stmt.h>
 #include <quark/Frontend/AST/Type.h>
 
@@ -21,9 +22,9 @@ enum class DeclKind {
 #include "ASTNodes.def"
 };
 
-struct Decl {
-  Decl(DeclKind kind, llvm::StringRef name)
-      : Kind(kind), Name(std::move(name)) {}
+struct Decl : Node {
+  Decl(location loc, DeclKind kind, llvm::StringRef name)
+      : Node(loc), Kind(kind), Name(std::move(name)) {}
   virtual ~Decl() = 0;
 
   virtual void print(llvm::raw_ostream &) const;
@@ -41,8 +42,8 @@ enum class VarDeclKind { None, LocalVar, ParamVar, RecieverVar };
 llvm::StringRef ToString(VarDeclKind kind);
 
 struct VarDecl : public Decl {
-  VarDecl(llvm::StringRef name, std::unique_ptr<Type> type)
-      : Decl(DeclKind::VarDecl, name), Type(std::move(type)) {}
+  VarDecl(location loc, llvm::StringRef name, std::unique_ptr<Type> type)
+      : Decl(loc, DeclKind::VarDecl, name), Type(std::move(type)) {}
   virtual ~VarDecl();
 
   bool operator==(const VarDecl &) const;
@@ -65,7 +66,8 @@ private:
 };
 
 struct FuncDecl : public Decl {
-  FuncDecl(llvm::StringRef name) : Decl(DeclKind::FuncDecl, name) {}
+  FuncDecl(location loc, llvm::StringRef name)
+      : Decl(loc, DeclKind::FuncDecl, name) {}
   virtual ~FuncDecl();
 
   struct FuncSignature {
@@ -87,7 +89,8 @@ struct FuncDecl : public Decl {
 
   bool isMethod() { return Reciver.get(); }
 
-  void fillFunction(llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
+  void fillFunction(location loc,
+                    llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
                     std::unique_ptr<Type> returnType,
                     std::vector<std::unique_ptr<Stmt>> stmts,
                     std::unique_ptr<VarDecl> reciver = nullptr);
@@ -115,8 +118,8 @@ struct FuncDecl : public Decl {
 };
 
 struct TypeFieldDecl : public Decl {
-  TypeFieldDecl(llvm::StringRef name, std::unique_ptr<Type> type)
-      : Decl(DeclKind::TypeFieldDecl, name), Type(std::move(type)) {}
+  TypeFieldDecl(location loc, llvm::StringRef name, std::unique_ptr<Type> type)
+      : Decl(loc, DeclKind::TypeFieldDecl, name), Type(std::move(type)) {}
   TypeFieldDecl(TypeFieldDecl &&typeFieldDel) = default;
   TypeFieldDecl &operator=(TypeFieldDecl &&typeFieldDel) = default;
   virtual ~TypeFieldDecl();
@@ -129,9 +132,9 @@ struct TypeFieldDecl : public Decl {
 };
 
 struct TypeDecl : public Decl {
-  TypeDecl(llvm::StringRef name,
+  TypeDecl(location loc, llvm::StringRef name,
            llvm::SmallVectorImpl<std::unique_ptr<TypeFieldDecl>> &&type)
-      : Decl(DeclKind::TypeDecl, name), FieldDecls(std::move(type)),
+      : Decl(loc, DeclKind::TypeDecl, name), FieldDecls(std::move(type)),
         Type(*this) {}
   virtual ~TypeDecl();
 
@@ -146,8 +149,8 @@ struct TypeDecl : public Decl {
 };
 
 struct AliasTypeDecl : public Decl {
-  AliasTypeDecl(llvm::StringRef name, const Type &type)
-      : Decl(DeclKind::AliasTypeDecl, name), RealType(type) {}
+  AliasTypeDecl(location loc, llvm::StringRef name, const Type &type)
+      : Decl(loc, DeclKind::AliasTypeDecl, name), RealType(type) {}
   virtual ~AliasTypeDecl();
 
   static bool classof(const Decl *decl) {

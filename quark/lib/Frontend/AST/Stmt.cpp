@@ -15,6 +15,6 @@ Stmt::~Stmt() {}
 void Stmt::print(llvm::raw_ostream &out) const { ASTDumper{out}.dump(*this); }
 void Stmt::dump() const { print(llvm::dbgs()); }
 
-IfStmt::CondAndStmt::CondAndStmt(std::unique_ptr<Expr> cond,
+IfStmt::CondAndStmt::CondAndStmt(location loc, std::unique_ptr<Expr> cond,
                                  std::unique_ptr<::Stmt> stmt)
-    : Cond(std::move(cond)), Stmt(std::move(stmt)) {}
+    : Location(loc), Cond(std::move(cond)), Stmt(std::move(stmt)) {}

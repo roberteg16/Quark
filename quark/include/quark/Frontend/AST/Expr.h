@@ -1,6 +1,7 @@
 #ifndef __QUARK_FRONTEND_AST_EXPR_H__
 #define __QUARK_FRONTEND_AST_EXPR_H__
 
+#include <quark/Frontend/AST/Node.h>
 #include <quark/Frontend/AST/Type.h>
 
 #include <llvm/ADT/ArrayRef.h>
@@ -23,9 +24,11 @@ enum class ExprKind {
 
 enum ValueTypeKind { LeftValue = 0, RightValue };
 
-struct Expr {
-  Expr(ExprKind kind, ValueTypeKind valueKind, std::unique_ptr<Type> exprType)
-      : Kind(kind), ValueKind(valueKind), ExprType(std::move(exprType)) {}
+struct Expr : Node {
+  Expr(location loc, ExprKind kind, ValueTypeKind valueKind,
+       std::unique_ptr<Type> exprType)
+      : Node(loc), Kind(kind), ValueKind(valueKind),
+        ExprType(std::move(exprType)) {}
   virtual ~Expr() = 0;
 
   virtual void print(llvm::raw_ostream &) const;
@@ -65,9 +68,9 @@ enum class BinaryOperatorKind {
 llvm::StringRef ToString(BinaryOperatorKind);
 
 struct BinaryExpr : public Expr {
-  BinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
+  BinaryExpr(location loc, BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
              std::unique_ptr<Expr> rhs, ValueTypeKind valueKind);
-  BinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
+  BinaryExpr(location loc, BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
              std::unique_ptr<Expr> rhs, std::unique_ptr<Type> newType,
              ValueTypeKind valueKind);
   virtual ~BinaryExpr();
@@ -91,9 +94,9 @@ enum class UnaryOperatorKind {
 llvm::StringRef ToString(UnaryOperatorKind);
 
 struct UnaryExpr : public Expr {
-  UnaryExpr(UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
+  UnaryExpr(location loc, UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
             ValueTypeKind valueKind);
-  UnaryExpr(UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
+  UnaryExpr(location loc, UnaryOperatorKind kind, std::unique_ptr<Expr> lhs,
             std::unique_ptr<Type> newType, ValueTypeKind valueKind);
   virtual ~UnaryExpr();
 
@@ -106,7 +109,8 @@ struct UnaryExpr : public Expr {
 };
 
 struct ExplicitCastExpr : public Expr {
-  ExplicitCastExpr(std::unique_ptr<Type> toType, std::unique_ptr<Expr> expr);
+  ExplicitCastExpr(location loc, std::unique_ptr<Type> toType,
+                   std::unique_ptr<Expr> expr);
   virtual ~ExplicitCastExpr();
 
   static bool classof(const Expr *expr) {
@@ -119,15 +123,15 @@ struct ExplicitCastExpr : public Expr {
 enum ImplicitCastKind { LValueToRValue = 0, ToBool };
 
 struct ImplicitCastExpr : public Expr {
-  ImplicitCastExpr(std::unique_ptr<Expr> expr, ImplicitCastKind kind,
-                   ValueTypeKind valueKind);
+  ImplicitCastExpr(location loc, std::unique_ptr<Expr> expr,
+                   ImplicitCastKind kind, ValueTypeKind valueKind);
   virtual ~ImplicitCastExpr();
 
   static bool classof(const Expr *expr) {
     return expr->getKind() == ExprKind::ImplicitCastExpr;
   }
 
-  static std::unique_ptr<Expr> Create(ImplicitCastKind kind,
+  static std::unique_ptr<Expr> Create(location loc, ImplicitCastKind kind,
                                       std::unique_ptr<Expr> expr);
 
   std::unique_ptr<Expr> CastedExpr;
@@ -135,7 +139,7 @@ struct ImplicitCastExpr : public Expr {
 };
 
 struct FunctionCallExpr : public Expr {
-  FunctionCallExpr(const FuncDecl &funcDecl,
+  FunctionCallExpr(location loc, const FuncDecl &funcDecl,
                    llvm::SmallVector<std::unique_ptr<Expr>, 4> params);
   virtual ~FunctionCallExpr();
 
@@ -148,7 +152,8 @@ struct FunctionCallExpr : public Expr {
 };
 
 struct MemberExpr : public Expr {
-  MemberExpr(std::unique_ptr<Expr> expr, const TypeFieldDecl &decl);
+  MemberExpr(location loc, std::unique_ptr<Expr> expr,
+             const TypeFieldDecl &decl);
   virtual ~MemberExpr();
 
   static bool classof(const Expr *expr) {
@@ -165,18 +170,19 @@ enum class TypeAccessKind { Unknown, Value, Pointer };
 struct TypeAccess {
   TypeAccess() : Kind(TypeAccessKind::Unknown), Name("") {}
 
-  TypeAccess(TypeAccessKind k, llvm::SmallString<10> name,
+  TypeAccess(location loc, TypeAccessKind k, llvm::SmallString<10> name,
              std::vector<std::unique_ptr<Expr>> arrayAccesses)
-      : Kind(k), Name(std::move(name)),
+      : Location(loc), Kind(k), Name(std::move(name)),
         ArrayAccesses(std::move(arrayAccesses)) {}
 
+  location Location;
   TypeAccessKind Kind;
   llvm::SmallString<10> Name;
   std::vector<std::unique_ptr<Expr>> ArrayAccesses;
 };
 
 struct VarRefExpr : public Expr {
-  VarRefExpr(const VarDecl &var);
+  VarRefExpr(location loc, const VarDecl &var);
   virtual ~VarRefExpr();
 
   static bool classof(const Expr *expr) {
@@ -187,8 +193,8 @@ struct VarRefExpr : public Expr {
 };
 
 struct ArrayAccessExpr : public Expr {
-  ArrayAccessExpr(std::unique_ptr<Expr> refVar, std::unique_ptr<Type> type,
-                  std::unique_ptr<Expr> idx);
+  ArrayAccessExpr(location loc, std::unique_ptr<Expr> refVar,
+                  std::unique_ptr<Type> type, std::unique_ptr<Expr> idx);
   virtual ~ArrayAccessExpr();
 
   static bool classof(const Expr *expr) {
@@ -200,7 +206,8 @@ struct ArrayAccessExpr : public Expr {
 };
 
 struct MemberCallExpr : public Expr {
-  MemberCallExpr(const FuncDecl &funcDecl, std::unique_ptr<Expr> memberExpr,
+  MemberCallExpr(location loc, const FuncDecl &funcDecl,
+                 std::unique_ptr<Expr> memberExpr,
                  llvm::SmallVectorImpl<std::unique_ptr<Expr>> &params);
   virtual ~MemberCallExpr();
 
@@ -214,7 +221,8 @@ struct MemberCallExpr : public Expr {
 };
 
 struct AllocExpr : public Expr {
-  AllocExpr(std::unique_ptr<Type> type, std::unique_ptr<Expr> size);
+  AllocExpr(location loc, std::unique_ptr<Type> type,
+            std::unique_ptr<Expr> size);
   virtual ~AllocExpr();
 
   static bool classof(const Expr *expr) {
@@ -226,7 +234,7 @@ struct AllocExpr : public Expr {
 };
 
 struct StringExpr : public Expr {
-  StringExpr(llvm::SmallString<40> v);
+  StringExpr(location loc, llvm::SmallString<40> v);
   virtual ~StringExpr();
 
   static bool classof(const Expr *expr) {
@@ -237,7 +245,7 @@ struct StringExpr : public Expr {
 };
 
 struct IntegerExpr : public Expr {
-  IntegerExpr(long long v);
+  IntegerExpr(location loc, long long v);
   virtual ~IntegerExpr();
 
   static bool classof(const Expr *expr) {
@@ -248,7 +256,7 @@ struct IntegerExpr : public Expr {
 };
 
 struct CharExpr : public Expr {
-  CharExpr(char v);
+  CharExpr(location loc, char v);
   virtual ~CharExpr();
 
   static bool classof(const Expr *expr) {
@@ -259,7 +267,7 @@ struct CharExpr : public Expr {
 };
 
 struct FloatingExpr : public Expr {
-  FloatingExpr(long double v);
+  FloatingExpr(location loc, long double v);
   virtual ~FloatingExpr();
 
   static bool classof(const Expr *expr) {
@@ -270,7 +278,7 @@ struct FloatingExpr : public Expr {
 };
 
 struct BooleanExpr : public Expr {
-  BooleanExpr(bool v);
+  BooleanExpr(location loc, bool v);
   virtual ~BooleanExpr();
 
   static bool classof(const Expr *expr) {
@@ -281,7 +289,7 @@ struct BooleanExpr : public Expr {
 };
 
 struct DereferenceExpr : public Expr {
-  DereferenceExpr(std::unique_ptr<Expr> expr);
+  DereferenceExpr(location loc, std::unique_ptr<Expr> expr);
   virtual ~DereferenceExpr();
 
   static bool classof(const Expr *expr) {
@@ -292,7 +300,7 @@ struct DereferenceExpr : public Expr {
 };
 
 struct AddressofExpr : public Expr {
-  AddressofExpr(std::unique_ptr<Expr> expr);
+  AddressofExpr(location loc, std::unique_ptr<Expr> expr);
   virtual ~AddressofExpr();
 
   static bool classof(const Expr *expr) {

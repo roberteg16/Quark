@@ -12,6 +12,8 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/raw_ostream.h>
 
+#include <../../build/tools/quark/lib/Frontend/Parsing/SourceLoc.h>
+
 namespace quark {
 
 struct NamedType;
@@ -20,7 +22,11 @@ struct Type;
 using Scope = llvm::SmallVector<const VarDecl *, 5>;
 
 struct LexContext {
-  LexContext();
+  quark::location Loc;
+  std::size_t line = 1;
+  std::size_t col = 1;
+
+  LexContext(std::string &file);
   ~LexContext();
 
   const FuncDecl *findFunctionDecl(const FuncDecl &funcDecl) const;
@@ -47,9 +53,10 @@ struct LexContext {
   const TypeDecl *addTypeDecl(const TypeDecl &);
   const VarDecl *addVar(const VarDecl &var);
 
-  void enterFunction(llvm::StringRef name);
+  void enterFunction(location loc, llvm::StringRef name);
   std::unique_ptr<FuncDecl>
-  exitFunction(llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
+  exitFunction(location loc,
+               llvm::SmallVector<std::unique_ptr<VarDecl>, 4> params,
                std::unique_ptr<Type> returnType,
                std::vector<std::unique_ptr<Stmt>> stmts,
                std::unique_ptr<VarDecl> reciver);
@@ -58,12 +65,15 @@ struct LexContext {
   void exitScope();
 
   std::unique_ptr<BinaryExpr>
-  createLogicalBinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
+  createLogicalBinaryExpr(location loc, BinaryOperatorKind op,
+                          std::unique_ptr<Expr> lhs,
                           std::unique_ptr<Expr> rhs) const;
   std::unique_ptr<BinaryExpr>
-  createArithmeticBinaryExpr(BinaryOperatorKind op, std::unique_ptr<Expr> lhs,
+  createArithmeticBinaryExpr(location loc, BinaryOperatorKind op,
+                             std::unique_ptr<Expr> lhs,
                              std::unique_ptr<Expr> rhs) const;
-  std::unique_ptr<ReturnStmt> makeReturnStmt(std::unique_ptr<Expr> expr);
+  std::unique_ptr<ReturnStmt> makeReturnStmt(location loc,
+                                             std::unique_ptr<Expr> expr);
   std::unique_ptr<Expr> castToBoolIfNeeded(std::unique_ptr<Expr> expr);
 
 private:
