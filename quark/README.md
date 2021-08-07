@@ -387,3 +387,11 @@ declare noalias i8* @malloc(i32)
 
 declare void @free(i8*)
 ```
+
+Example of execution:
+```
+➜  build git:(main) ✗ ./largeExample Ford Luis Seat Marco
+Total number of cars: 2
+	The car of brand 'Ford' belongs to 'Luis'
+	The car of brand 'Seat' belongs to 'Marco'
+```
